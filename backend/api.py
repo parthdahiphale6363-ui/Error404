@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.db.graph_repo import graph_repo
+from backend.explain.engine import ExplainEngine
 from backend.schemas import (
     AnalystVerdict,
     AlertRecord,
@@ -28,6 +29,7 @@ from backend.schemas import (
 )
 
 router = APIRouter()
+explain_engine = ExplainEngine()
 
 
 class HealthResponse(BaseModel):
@@ -157,37 +159,16 @@ def get_companies():
 @router.get("/companies/{ticker}/explanation", response_model=ExplanationResponse)
 def get_company_explanation(ticker: str):
     """Grounded 2-line explanation citing retrieved graph items."""
-    ticker = ticker.upper()
-    return ExplanationResponse(
-        company=ticker,
-        as_of=datetime.now(timezone.utc),
-        summary=(
-            f"Risk for {ticker} elevated due to repeat consumer dispute filings and recent regulatory inquiry. "
-            "Evidence graph links 3 related incidents under same topic in the last 90 days."
-        ),
-        cited_item_ids=[f"{ticker.lower()}_item_1", f"{ticker.lower()}_item_2"],
-        evidence_paths=[
-            f"(Item:{ticker.lower()}_item_1)-[:HAS_TOPIC]->(Topic:enforcement action)<-[:HAS_TOPIC]-(Item:{ticker.lower()}_item_2)"
-        ],
-    )
+    return explain_engine.generate_explanation(ticker)
 
 
 @router.get("/companies/{ticker}/evidence-graph", response_model=EvidenceGraphData)
 def get_company_evidence_graph(ticker: str):
     """Nodes and edges for evidence path visualization."""
-    ticker = ticker.upper()
+    evidence = graph_repo.get_evidence_for_company(ticker)
     return EvidenceGraphData(
-        nodes=[
-            {"id": f"comp_{ticker}", "label": "Company", "properties": {"ticker": ticker}},
-            {"id": f"item_1", "label": "Item", "properties": {"severity": 4, "title": f"Recent {ticker} Filing"}},
-            {"id": "topic_1", "label": "Topic", "properties": {"name": "enforcement action"}},
-            {"id": "reg_1", "label": "Regulator", "properties": {"name": "CFPB"}},
-        ],
-        edges=[
-            {"source": "item_1", "target": f"comp_{ticker}", "type": "ABOUT", "properties": {}},
-            {"source": "item_1", "target": "topic_1", "type": "HAS_TOPIC", "properties": {}},
-            {"source": "item_1", "target": "reg_1", "type": "INVOLVES", "properties": {}},
-        ],
+        nodes=evidence.get("nodes", []),
+        edges=evidence.get("edges", []),
     )
 
 

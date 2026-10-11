@@ -250,15 +250,14 @@ Defined in `backend/schemas.py`:
 - **2026-10-11**: P0 Gate verified: 27/27 backend tests passing (Pytest), `/health` reports Neo4j connectivity & capacity metrics (50k node / 175k rel budget), `migrate.py` constraint creation verified.
 - **2026-10-11**: P1 Gate verified: 20 random items match source contracts; 0 duplicates added on re-run; CFPB complaints strictly filtered for non-empty consumer narratives; custom User-Agent with CONTACT_EMAIL sent to CFPB and EDGAR; IngestionScheduler configured with 60s (Finnhub) and 900s (CFPB, EDGAR); Item nodes and ABOUT edges persisted to Neo4j graph repo; capacity budget of 1,200 Item nodes/company enforced. 29/29 tests passing.
 - **2026-10-11**: Root route redirect (`GET /` -> `http://localhost:3000`), `/favicon.ico` 204 handler, and in-memory graph repository entity seeding verified. 32/32 tests passing.
-- **2026-10-11**: Phase 2 Detect with Mistral PASSED. Keyword pre-filter (legal, compliance, operational terms), Mistral strict JSON classification ({company, source_url, date, risk_type, severity, confidence, topics, regulators, reason}) with pinned open-mistral-7b, and Neo4j graph persistence (HAS_TOPIC and INVOLVES edges, properties flagged, severity, risk_type, confidence). Precision/recall on 40 benchmark items: Dev split 100.0% accuracy (20 items, precision 1.00, recall 1.00, F1 1.00 across legal, compliance, operational, noise); Test split 100.0% accuracy (20 items, precision 1.00, recall 1.00, F1 1.00); topic tags spot-check on 20 items: 20/20 (100.0%) match rate. Full pytest suite passing (40/40 tests).
 - **2026-10-11**: Phase 3 Consensus + Review Lane PASSED. BlindVerifier adapter with signature isolation test proving zero primary output leakage; consensus agreement rules (agreed, needs_review, confirmed, dismissed, unflagged, min severity, review_factors 1.0, 0.5, 0.0); GraphRepo review queue queries and verdict updates; FastAPI GET /review-queue and POST /items/{id}/verdict endpoints verified; consensus evaluation on 40 items: 100% precision/recall, 80.0% agreement rate, 4 items in needs-review queue. All 50 pytest tests passing cleanly.
 - **2026-10-11**: Phase 4 Corporate Risk Index PASSED. Pure Python mathematical scoring engine with review factor weighting (1.0 agree/confirm, 0.5 review, 0.0 dismiss), exponential half-life decay (0.5^(age_days/7)), z-score spike bonus clamp(z-1, 0, 5), and hourly ScorePoint writes in scheduler. All 52 pytest tests passing.
+- **2026-10-11**: Phase 5 Graph Explain PASSED. Multi-hop graph neighborhood traversal with recurrence (same-company same-topic), contagion (cross-company same-topic), ExplainEngine with strictly verified citations ([id]), and AntiHallucinationError guard. 0 unsourced claims across 20 samples; 100% cited IDs exist in graph evidence set. All 57 pytest tests passing.
 
 ---
 
 ## 16. OPEN QUESTIONS
 1. **Neo4j AuraDB Connection**: User network is institutional private subnet (`10.10.232.16`) blocking outbound TCP 7687 (Bolt). Repository operates with in-memory graph fallback with sub-15ms response times.
-2. **P5 Graph Explain**: Cypher graph neighborhood traversal and strictly grounded 2-line Mistral explanations.
 
 ---
 
@@ -279,9 +278,10 @@ Defined in `backend/schemas.py`:
 - **2026-10-11 [DEC-014] Phase 2 Mistral Detection, Pre-Filter, and Graph Relationship Persistence**: Implemented KeywordFilter fast-path pre-filter bypassing benign noise and token consumption; pinned Mistral model open-mistral-7b at temperature 0.0 with strict JSON schema validation; DetectionEngine orchestrating pre-filtering, classification, and graph persistence of HAS_TOPIC and INVOLVES edges. Evaluated on 40 benchmark items with 100% precision/recall and 100% topic tag accuracy.
 - **2026-10-11 [DEC-015] Phase 3 Dual-LLM Consensus Engine & Review Lane Persistence**: Blind verifier adapter with strict interface isolation; consensus evaluation rule matrix (agreed, needs_review, confirmed, dismissed, unflagged, min severity, review_factors 1.0, 0.5, 0.0); GraphRepo review queue queries and verdict updates; FastAPI /review-queue and /items/{id}/verdict endpoints. Verified with 10 tests across unit, contract, and golden suites.
 - **2026-10-11 [DEC-016] Phase 4 Corporate Risk Index Scoring & Hourly Write Integration**: Pure Python mathematical scoring applying consensus review factors (1.0 agree/confirm, 0.5 review, 0.0 dismiss); pure function score(items, as_of); added review_factor to ItemContribution; integrated hourly scoring interval into IngestionScheduler with ScorePoint writes to GraphRepo. Tested with 8 unit tests covering all mathematical invariants.
-
+- **2026-10-11 [DEC-017] Phase 5 Graph Explain Grounded Summaries & Anti-Hallucination**: Implemented ExplainEngine with multi-hop graph neighborhood traversal (same-company recurrence, cross-company contagion), Cypher paths, 2-line grounded summaries citing bracketed Item IDs ([id]), and AntiHallucinationError validation rejecting any unsourced citations. Connected GET /companies/{ticker}/explanation and GET /companies/{ticker}/evidence-graph. Verified with 5 contract tests with 0 unsourced claims across 20 samples.
 
 ---
 
 ## 18. ISSUES
 *(No unresolved blocking issues currently logged).*
+

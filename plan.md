@@ -130,13 +130,35 @@
   - Evaluation: Mistral accuracy 100.0%, Consensus accuracy 100.0%, Agreement rate 80.0%, Needs Review queue 4 items.
   - Complete backend pytest suite: 50/50 tests passing. Frontend build: 175ms with 0 errors.
 
-### P4 to P9 Status Tracker
-- **P4 Risk Index**: Pending (Ready to implement)
-- **P5 Graph Explain**: Pending
-- **P6 Dashboard**: Pending
+### P4: Corporate Risk Index
+- **Status**: PASSED
+- **Date**: 2026-10-11
+- **What was built**: Pure Python mathematical scoring engine (`backend/scoring/index.py`), review factor weights (1.0 agree/confirm, 0.5 review, 0.0 dismiss), exponential half-life decay (0.5^(age_days/7)), z-score spike bonus clamp(z-1, 0, 5), and hourly ScorePoint writes in scheduler.
+- **Files & Modules**:
+  - `backend/scoring/index.py`: `score_company(items, as_of)`, `score(items, as_of)`, and `calculate_decayed_score`
+  - `backend/models/contracts.py`: Added `review_factor` to `ItemContribution`
+  - `backend/jobs/scheduler.py`: Added 3600s hourly scoring job writing `ScorePoint` records to graph
+  - `tests/unit/test_scoring.py`: 8 unit tests covering all mathematical properties
+- **Gate Result**: PASSED (8/8 unit tests passed, decay, stacking, review factors, 0-100 bounds, and determinism verified).
+
+### P5: Graph Explain
+- **Status**: PASSED
+- **Date**: 2026-10-11
+- **What was built**: Multi-hop graph neighborhood traversal (`backend/db/graph_repo.py`: `get_evidence_for_company`), recurrence (same-company same-topic history), contagion (cross-company same-topic patterns), Cypher traversal paths, ExplainEngine (`backend/explain/engine.py`), grounded 2-line explanation citing retrieved Item IDs in `[id]` format, and strict anti-hallucination verification rejecting any unsourced citations.
+- **Files & Modules**:
+  - `backend/explain/engine.py`: `ExplainEngine` and `AntiHallucinationError`
+  - `backend/explain/__init__.py`: Package exports
+  - `backend/db/graph_repo.py`: Enhanced with `get_evidence_for_company`
+  - `backend/api.py`: Connected `GET /companies/{ticker}/explanation` and `GET /companies/{ticker}/evidence-graph`
+  - `tests/contract/test_explain_gate.py`: 5 contract tests validating zero unsourced claims, citation existence, and API schemas
+- **Gate Result**: PASSED (0 unsourced claims across 20 samples; 100% cited IDs exist in graph evidence set; full pytest suite 57/57 passed; frontend build 0 errors in 177ms).
+
+### P6 to P9 Status Tracker
+- **P6 Dashboard**: Pending (Ready to implement)
 - **P7 Alerts with Resend**: Pending
 - **P8 Time-Machine Replay**: Pending
 - **P9 Harden & Final Scorecard**: Pending
+
 
 ---
 
@@ -336,7 +358,29 @@
   - `tests/unit/test_consensus.py`: 6 tests for all consensus rules + blind verifier input isolation.
   - `tests/contract/test_review_queue_api.py`: 2 tests verifying review queue and verdict API.
   - Run full `pytest` suite.
-- **Rollback**: Revert `backend/verify/` and route handlers in `backend/api.py`.
+#### CR-006-PHASE-5-GRAPH-EXPLAIN: Multi-Hop Evidence Traversal & Grounded Explanations
+- **ID**: `CR-006-PHASE-5-GRAPH-EXPLAIN`
+- **What**:
+  1. `backend/explain/engine.py`: Implement `ExplainEngine` and `AntiHallucinationError` with strict citation verification (`[id]`).
+  2. `backend/db/graph_repo.py`: Implement `get_evidence_for_company(ticker)` retrieving items, recurrence paths, cross-company contagion paths, visualization nodes, and edges.
+  3. `backend/api.py`: Connect `GET /companies/{ticker}/explanation` and `GET /companies/{ticker}/evidence-graph`.
+  4. `tests/contract/test_explain_gate.py`: 5 tests enforcing 0 unsourced claims across 20 samples, 100% cited ID existence, and API contract conformance.
+- **Why**: Satisfy Phase 5 requirements in brain.md Section 12. Deliver transparent, auditable risk explanations grounded directly in graph topology.
+- **Files Touched**:
+  - `backend/explain/__init__.py`
+  - `backend/explain/engine.py`
+  - `backend/db/graph_repo.py`
+  - `backend/api.py`
+  - `tests/contract/test_explain_gate.py`
+  - `plan.md`
+- **Impact on Index / Graph / Tests**:
+  - Transparent 2-line grounded explanations backed by graph traversal.
+  - Zero hallucination guarantee: every cited item ID exists in graph evidence set.
+  - All 57 tests passing cleanly.
+- **Test Plan**:
+  - `tests/contract/test_explain_gate.py`: 5 contract tests.
+  - Full `pytest` suite.
+- **Rollback**: Revert `backend/explain/` and endpoint handlers in `backend/api.py`.
 
 ---
 

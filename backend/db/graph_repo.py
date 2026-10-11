@@ -535,6 +535,229 @@ class GraphRepo:
             record = res.single()
             return record["cnt"] if record else 0
 
+    def get_evidence_for_company(self, ticker: str, limit: int = 15) -> Dict[str, Any]:
+        """Retrieve graph evidence for a company: items, recurrence, contagion, paths, nodes, edges."""
+        driver = self.get_driver()
+        ticker = ticker.upper()
+
+        if not driver:
+            # In-memory graph traversal
+            comp_items = [
+                v for v in self._in_memory_items.values()
+                if v.get("company") == ticker
+            ][:limit]
+
+            # If no items in memory yet, return empty structured dict
+            if not comp_items:
+                nodes = [{"id": f"comp_{ticker}", "label": "Company", "properties": {"ticker": ticker}}]
+                return {
+                    "items": [],
+                    "recurrence": [],
+                    "contagion": [],
+                    "paths": [],
+                    "nodes": nodes,
+                    "edges": [],
+                }
+
+            items_by_id = {item["id"]: item for item in comp_items}
+            item_topics: Dict[str, List[str]] = {}
+            item_regulators: Dict[str, List[str]] = {}
+
+            # Discover topics & regulators from relationships or item properties
+            for rel in self._in_memory_relationships:
+                src = rel.get("source")
+                tgt = rel.get("target")
+                rtype = rel.get("type")
+                if rtype == "HAS_TOPIC" and src:
+                    item_topics.setdefault(src, []).append(tgt)
+                elif rtype == "INVOLVES" and src:
+                    item_regulators.setdefault(src, []).append(tgt)
+
+            # Check if topics were stored as JSON strings
+            for item_id, it in self._in_memory_items.items():
+                if "topics_json" in it and item_id not in item_topics:
+                    try:
+                        item_topics[item_id] = json.loads(it["topics_json"])
+                    except Exception:
+                        pass
+                if "regulators_json" in it and item_id not in item_regulators:
+                    try:
+                        item_regulators[item_id] = json.loads(it["regulators_json"])
+                    except Exception:
+                        pass
+
+            recurrence = []
+            contagion = []
+            paths = []
+
+            for i1 in comp_items:
+                i1_id = i1["id"]
+                t_list = item_topics.get(i1_id, [])
+                for topic in t_list:
+                    # Find other items with same topic
+                    for other_id, other_topics in item_topics.items():
+                        if other_id == i1_id or topic not in other_topics:
+                            continue
+                        other_item = self._in_memory_items.get(other_id)
+                        if not other_item:
+                            continue
+                        if other_item.get("company") == ticker:
+                            recurrence.append({"item_id": i1_id, "topic": topic, "related_item_id": other_id})
+                            path_str = f"(Item:{i1_id})-[:HAS_TOPIC]->(Topic:{topic})<-[:HAS_TOPIC]-(Item:{other_id})"
+                            if path_str not in paths:
+                                paths.append(path_str)
+                        else:
+                            other_comp = other_item.get("company", "OTHER")
+                            contagion.append({"item_id": i1_id, "topic": topic, "related_item_id": other_id, "other_company": other_comp})
+                            path_str = f"(Item:{i1_id})-[:HAS_TOPIC]->(Topic:{topic})<-[:HAS_TOPIC]-(Item:{other_id})-[:ABOUT]->(Company:{other_comp})"
+                            if path_str not in paths:
+                                paths.append(path_str)
+
+            # If no multi-item paths, generate item -> topic / regulator paths
+            if not paths:
+                for i1 in comp_items:
+                    i1_id = i1["id"]
+                    for t in item_topics.get(i1_id, []):
+                        paths.append(f"(Item:{i1_id})-[:HAS_TOPIC]->(Topic:{t})")
+                    for r in item_regulators.get(i1_id, []):
+                        paths.append(f"(Item:{i1_id})-[:INVOLVES]->(Regulator:{r})")
+
+            # Build visualization nodes and edges
+            nodes = [{"id": f"comp_{ticker}", "label": "Company", "properties": {"ticker": ticker}}]
+            edges = []
+            seen_nodes = {f"comp_{ticker}"}
+
+            for it in comp_items:
+                i_id = it["id"]
+                if i_id not in seen_nodes:
+                    seen_nodes.add(i_id)
+                    nodes.append({
+                        "id": i_id,
+                        "label": "Item",
+                        "properties": {
+                            "title": it.get("title", ""),
+                            "severity": it.get("severity", it.get("final_severity", 3)),
+                            "risk_type": it.get("risk_type", "compliance"),
+                        },
+                    })
+                edges.append({"source": i_id, "target": f"comp_{ticker}", "type": "ABOUT", "properties": {}})
+
+                for t in item_topics.get(i_id, []):
+                    t_id = f"topic_{t.replace(' ', '_')}"
+                    if t_id not in seen_nodes:
+                        seen_nodes.add(t_id)
+                        nodes.append({"id": t_id, "label": "Topic", "properties": {"name": t}})
+                    edges.append({"source": i_id, "target": t_id, "type": "HAS_TOPIC", "properties": {}})
+
+                for r in item_regulators.get(i_id, []):
+                    r_id = f"reg_{r.replace(' ', '_')}"
+                    if r_id not in seen_nodes:
+                        seen_nodes.add(r_id)
+                        nodes.append({"id": r_id, "label": "Regulator", "properties": {"name": r}})
+                    edges.append({"source": i_id, "target": r_id, "type": "INVOLVES", "properties": {}})
+
+            return {
+                "items": comp_items,
+                "recurrence": recurrence,
+                "contagion": contagion,
+                "paths": paths,
+                "nodes": nodes,
+                "edges": edges,
+            }
+
+        # Neo4j Driver Mode: Execute Cypher queries
+        query_items = (
+            "MATCH (i:Item)-[:ABOUT]->(c:Company {ticker: $ticker}) "
+            "OPTIONAL MATCH (i)-[:HAS_TOPIC]->(t:Topic) "
+            "OPTIONAL MATCH (i)-[:INVOLVES]->(r:Regulator) "
+            "RETURN i, collect(DISTINCT t.name) AS topics, collect(DISTINCT r.name) AS regulators "
+            "ORDER BY i.date DESC LIMIT $limit"
+        )
+        query_recurrence = (
+            "MATCH (i1:Item)-[:ABOUT]->(c:Company {ticker: $ticker}), "
+            "      (i1)-[:HAS_TOPIC]->(t:Topic)<-[:HAS_TOPIC]-(i2:Item)-[:ABOUT]->(c) "
+            "WHERE i1.id <> i2.id "
+            "RETURN i1.id AS id1, t.name AS topic, i2.id AS id2 "
+            "LIMIT 25"
+        )
+        query_contagion = (
+            "MATCH (i1:Item)-[:ABOUT]->(c:Company {ticker: $ticker}), "
+            "      (i1)-[:HAS_TOPIC]->(t:Topic)<-[:HAS_TOPIC]-(i2:Item)-[:ABOUT]->(c2:Company) "
+            "WHERE c.ticker <> c2.ticker "
+            "RETURN i1.id AS id1, t.name AS topic, i2.id AS id2, c2.ticker AS other_ticker "
+            "LIMIT 25"
+        )
+
+        with driver.session() as session:
+            res_items = session.run(query_items, ticker=ticker, limit=limit)
+            comp_items = []
+            nodes = [{"id": f"comp_{ticker}", "label": "Company", "properties": {"ticker": ticker}}]
+            edges = []
+            seen_nodes = {f"comp_{ticker}"}
+            paths = []
+
+            for rec in res_items:
+                item_dict = dict(rec["i"])
+                topics = rec["topics"]
+                regulators = rec["regulators"]
+                item_dict["topics"] = topics
+                item_dict["regulators"] = regulators
+                comp_items.append(item_dict)
+
+                i_id = item_dict.get("id")
+                if i_id and i_id not in seen_nodes:
+                    seen_nodes.add(i_id)
+                    nodes.append({
+                        "id": i_id,
+                        "label": "Item",
+                        "properties": {
+                            "title": item_dict.get("title", ""),
+                            "severity": item_dict.get("severity", item_dict.get("final_severity", 3)),
+                            "risk_type": item_dict.get("risk_type", "compliance"),
+                        },
+                    })
+                    edges.append({"source": i_id, "target": f"comp_{ticker}", "type": "ABOUT", "properties": {}})
+
+                for t in topics:
+                    t_id = f"topic_{t.replace(' ', '_')}"
+                    if t_id not in seen_nodes:
+                        seen_nodes.add(t_id)
+                        nodes.append({"id": t_id, "label": "Topic", "properties": {"name": t}})
+                    edges.append({"source": i_id, "target": t_id, "type": "HAS_TOPIC", "properties": {}})
+
+                for r in regulators:
+                    r_id = f"reg_{r.replace(' ', '_')}"
+                    if r_id not in seen_nodes:
+                        seen_nodes.add(r_id)
+                        nodes.append({"id": r_id, "label": "Regulator", "properties": {"name": r}})
+                    edges.append({"source": i_id, "target": r_id, "type": "INVOLVES", "properties": {}})
+
+            res_rec = session.run(query_recurrence, ticker=ticker)
+            recurrence = []
+            for rec in res_rec:
+                recurrence.append({"item_id": rec["id1"], "topic": rec["topic"], "related_item_id": rec["id2"]})
+                path_str = f"(Item:{rec['id1']})-[:HAS_TOPIC]->(Topic:{rec['topic']})<-[:HAS_TOPIC]-(Item:{rec['id2']})"
+                if path_str not in paths:
+                    paths.append(path_str)
+
+            res_con = session.run(query_contagion, ticker=ticker)
+            contagion = []
+            for rec in res_con:
+                contagion.append({"item_id": rec["id1"], "topic": rec["topic"], "related_item_id": rec["id2"], "other_company": rec["other_ticker"]})
+                path_str = f"(Item:{rec['id1']})-[:HAS_TOPIC]->(Topic:{rec['topic']})<-[:HAS_TOPIC]-(Item:{rec['id2']})-[:ABOUT]->(Company:{rec['other_ticker']})"
+                if path_str not in paths:
+                    paths.append(path_str)
+
+            return {
+                "items": comp_items,
+                "recurrence": recurrence,
+                "contagion": contagion,
+                "paths": paths,
+                "nodes": nodes,
+                "edges": edges,
+            }
+
 
 # Default singleton instance
 graph_repo = GraphRepo()
+
