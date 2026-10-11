@@ -1,0 +1,77 @@
+# ==============================================================================
+# Corporate Risk Radar - Docker Compose Orchestration
+# ==============================================================================
+version: "3.8"
+
+services:
+  # ----------------------------------------------------------------------------
+  # Backend: FastAPI Python 3.12 Server
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: risk-radar-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - APP_ENV=production
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - risk-radar-net
+
+  # ----------------------------------------------------------------------------
+  # Frontend: React 19 + Vite Dashboard (Nginx Reverse Proxy)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: risk-radar-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - risk-radar-net
+
+  # ----------------------------------------------------------------------------
+  # (Optional) Local Neo4j Graph Database
+  # Uncomment if you prefer running Neo4j locally instead of Neo4j AuraDB Free.
+  # Set NEO4J_URI=bolt://neo4j:7687 and NEO4J_PASSWORD=riskradar123 in your .env
+  # ----------------------------------------------------------------------------
+  # neo4j:
+  #   image: neo4j:5.20-community
+  #   container_name: risk-radar-neo4j
+  #   ports:
+  #     - "7474:7474" # Neo4j Browser Web UI
+  #     - "7687:7687" # Bolt Protocol
+  #   environment:
+  #     - NEO4J_AUTH=neo4j/riskradar123
+  #   volumes:
+  #     - neo4j_data:/data
+  #   restart: unless-stopped
+  #   networks:
+  #     - risk-radar-net
+
+networks:
+  risk-radar-net:
+    driver: bridge
+
+# volumes:
+#   neo4j_data:

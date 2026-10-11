@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Archify — Web Request: Redis Cache Miss & PostgreSQL Query Sequence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #090d16;
+      --bg-surface: #0f172a;
+      --bg-card: rgba(15, 23, 42, 0.75);
+      --border: rgba(255, 255, 255, 0.1);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-blue: #38bdf8;
+      --accent-indigo: #818cf8;
+      --accent-emerald: #34d495;
+      --accent-amber: #fbbf24;
+      --accent-rose: #f43f5e;
+      --arrow-color: #cbd5e1;
+      --lifeline-color: rgba(255, 255, 255, 0.15);
+      --segment-bg: rgba(255, 255, 255, 0.02);
+      --segment-border: rgba(255, 255, 255, 0.05);
+    }
+
+    [data-theme="light"] {
+      --bg-primary: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-card: rgba(255, 255, 255, 0.85);
+      --border: rgba(0, 0, 0, 0.1);
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --accent-blue: #0284c7;
+      --accent-indigo: #4f46e5;
+      --accent-emerald: #059669;
+      --accent-amber: #d97706;
+      --accent-rose: #e11d48;
+      --arrow-color: #334155;
+      --lifeline-color: rgba(0, 0, 0, 0.15);
+      --segment-bg: rgba(0, 0, 0, 0.02);
+      --segment-border: rgba(0, 0, 0, 0.05);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+
+    /* Top Bar */
+    header {
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .badge-archify {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-blue);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    button.tool-btn {
+      background: var(--bg-surface);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    button.tool-btn:hover {
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+      transform: translateY(-1px);
+    }
+
+    button.tool-btn.active {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+    }
+
+    /* Diagram Canvas Container */
+    main {
+      flex: 1;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .canvas-wrapper {
+      width: 100%;
+      max-width: 1100px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.5);
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Step Controller Bar */
+    .step-controller {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      margin-bottom: 20px;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    .playback-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* SVG Styling */
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+      user-select: none;
+    }
+
+    .lifeline {
+      stroke: var(--lifeline-color);
+      stroke-width: 1.5;
+      stroke-dasharray: 4 4;
+    }
+
+    .activation {
+      rx: 4;
+      ry: 4;
+      stroke-width: 1.5;
+    }
+
+    .msg-line {
+      stroke-width: 2;
+      transition: stroke 0.2s, stroke-width 0.2s;
+    }
+
+    .msg-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      font-weight: 600;
+      fill: var(--text-main);
+      transition: fill 0.2s;
+    }
+
+    .msg-step {
+      opacity: 0.25;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .msg-step.active-step {
+      opacity: 1 !important;
+    }
+
+    .msg-step.passed-step {
+      opacity: 0.85;
+    }
+
+    /* Trace packet animation along line */
+    @keyframes pulse-travel {
+      0% { offset-distance: 0%; opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { offset-distance: 100%; opacity: 0; }
+    }
+
+    .packet-dot {
+      fill: #38bdf8;
+      filter: drop-shadow(0 0 4px #38bdf8);
+      display: none;
+    }
+
+    .trace-active .packet-dot {
+      display: block;
+    }
+
+    /* Interactive Explanation Footer */
+    .legend-panel {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      width: 100%;
+      max-width: 1100px;
+    }
+
+    .legend-card {
+      padding: 16px;
+      border-radius: 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .legend-card h4 {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header>
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <span class="badge-archify">Archify v3.0</span>
+      <h1 style="font-size: 16px; font-weight: 700;">Web Request Sequence: Cache Miss & PostgreSQL Query</h1>
+    </div>
+
+    <div class="toolbar-actions">
+      <button class="tool-btn" id="traceBtn" onclick="toggleTrace()">
+        <span id="traceIndicator">●</span> Trace Motion: <strong id="traceState">ON</strong>
+      </button>
+      <button class="tool-btn" onclick="toggleTheme()">
+        <span id="themeIcon">☀️</span> Theme
+      </button>
+      <button class="tool-btn" onclick="window.print()">
+        <span>⎙</span> Export
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Canvas -->
+  <main>
+    <div class="canvas-wrapper trace-active" id="diagramWrapper">
+
+      <!-- Step Playback Bar -->
+      <div class="step-controller">
+        <div class="playback-controls">
+          <button class="tool-btn" onclick="stepPrev()">◀ Step</button>
+          <button class="tool-btn" id="playBtn" onclick="toggleAutoPlay()">▶ Play Trace</button>
+          <button class="tool-btn" onclick="stepNext()">Step ▶</button>
+          <button class="tool-btn" onclick="resetSteps()">↺ Reset</button>
+        </div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent-blue);" id="stepStatus">
+          Viewing All 8 Steps (Continuous Motion)
+        </div>
+      </div>
+
+      <!-- Standalone Inline SVG Sequence Diagram -->
+      <svg id="sequenceSvg" viewBox="0 0 1080 620" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <!-- Arrow Markers -->
+          <marker id="arrow-default" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+          </marker>
+          <marker id="arrow-return" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#cbd5e1" />
+          </marker>
+          <marker id="arrow-miss" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#fbbf24" />
+          </marker>
+          <marker id="arrow-success" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d495" />
+          </marker>
+
+          <!-- Glow Filter -->
+          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+
+        <!-- Segment Background Bands -->
+        <!-- Segment 1: Inbound Request & Cache Check -->
+        <rect x="50" y="115" width="980" height="135" rx="8" fill="rgba(56, 189, 248, 0.03)" stroke="rgba(56, 189, 248, 0.12)" stroke-width="1" />
+        <text x="65" y="132" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="700" fill="#38bdf8" letter-spacing="0.05em">PHASE 1: CLIENT CALL & REDIS CACHE PROBE</text>
+
+        <!-- Segment 2: Cache Miss & PostgreSQL Query -->
+        <rect x="50" y="260" width="980" height="135" rx="8" fill="rgba(251, 191, 36, 0.03)" stroke="rgba(251, 191, 36, 0.12)" stroke-width="1" />
+        <text x="65" y="278" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="700" fill="#fbbf24" letter-spacing="0.05em">PHASE 2: CACHE MISS & DATABASE QUERY</text>
+
+        <!-- Segment 3: Cache Populate & HTTP Response -->
+        <rect x="50" y="405" width="980" height="175" rx="8" fill="rgba(52, 211, 153, 0.03)" stroke="rgba(52, 211, 153, 0.12)" stroke-width="1" />
+        <text x="65" y="423" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="700" fill="#34d495" letter-spacing="0.05em">PHASE 3: CACHE POPULATE & RETURN 200 OK</text>
+
+        <!-- ================= PARTICIPANT LIFELINES ================= -->
+        <!-- 1. Browser: x = 150 -->
+        <line x1="150" y1="80" x2="150" y2="590" class="lifeline" />
+        <!-- 2. API Server: x = 420 -->
+        <line x1="420" y1="80" x2="420" y2="590" class="lifeline" />
+        <!-- 3. Redis Cache: x = 700 -->
+        <line x1="700" y1="80" x2="700" y2="590" class="lifeline" />
+        <!-- 4. PostgreSQL DB: x = 940 -->
+        <line x1="940" y1="80" x2="940" y2="590" class="lifeline" />
+
+        <!-- ================= ACTIVATION RECTANGLES ================= -->
+        <!-- Browser Activation -->
+        <rect x="144" y="140" width="12" height="425" class="activation" fill="#0284c7" stroke="#38bdf8" />
+        <!-- API Server Main Activation -->
+        <rect x="414" y="150" width="12" height="410" class="activation" fill="#4f46e5" stroke="#818cf8" />
+        <!-- Redis Probe Activation (Miss) -->
+        <rect x="694" y="195" width="12" height="45" class="activation" fill="#b45309" stroke="#fbbf24" />
+        <!-- Postgres Query Activation -->
+        <rect x="934" y="320" width="12" height="55" class="activation" fill="#047857" stroke="#34d495" />
+        <!-- Redis Set Activation (Fill) -->
+        <rect x="694" y="460" width="12" height="40" class="activation" fill="#047857" stroke="#34d495" />
+
+        <!-- ================= PARTICIPANT HEADERS ================= -->
+        <!-- Participant 1: Browser -->
+        <g transform="translate(70, 20)">
+          <rect width="160" height="55" rx="10" fill="#0c1a2e" stroke="#0284c7" stroke-width="1.5" />
+          <text x="80" y="26" text-anchor="middle" font-size="13" font-weight="700" fill="#38bdf8">🌐 Browser</text>
+          <text x="80" y="42" text-anchor="middle" font-size="10.5" fill="#94a3b8">Client Session / App</text>
+        </g>
+
+        <!-- Participant 2: API Server -->
+        <g transform="translate(340, 20)">
+          <rect width="160" height="55" rx="10" fill="#131433" stroke="#4f46e5" stroke-width="1.5" />
+          <text x="80" y="26" text-anchor="middle" font-size="13" font-weight="700" fill="#818cf8">⚙️ API Server</text>
+          <text x="80" y="42" text-anchor="middle" font-size="10.5" fill="#94a3b8">FastAPI / Node Service</text>
+        </g>
+
+        <!-- Participant 3: Redis Cache -->
+        <g transform="translate(620, 20)">
+          <rect width="160" height="55" rx="10" fill="#241407" stroke="#d97706" stroke-width="1.5" />
+          <text x="80" y="26" text-anchor="middle" font-size="13" font-weight="700" fill="#fbbf24">⚡ Redis</text>
+          <text x="80" y="42" text-anchor="middle" font-size="10.5" fill="#94a3b8">In-Memory Cache Store</text>
+        </g>
+
+        <!-- Participant 4: PostgreSQL -->
+        <g transform="translate(860, 20)">
+          <rect width="160" height="55" rx="10" fill="#072018" stroke="#059669" stroke-width="1.5" />
+          <text x="80" y="26" text-anchor="middle" font-size="13" font-weight="700" fill="#34d495">🐘 PostgreSQL</text>
+          <text x="80" y="42" text-anchor="middle" font-size="10.5" fill="#94a3b8">Relational Source of Truth</text>
+        </g>
+
+        <!-- ================= MESSAGES & ARROWS ================= -->
+
+        <!-- STEP 1: Browser -> API -->
+        <g class="msg-step" id="step-1">
+          <line x1="156" y1="150" x2="414" y2="150" stroke="#38bdf8" class="msg-line" marker-end="url(#arrow-default)" />
+          <text x="285" y="142" text-anchor="middle" class="msg-label">1. GET /api/v1/users/42</text>
+          <circle cx="156" cy="150" r="4" class="packet-dot">
+            <animate attributeName="cx" from="156" to="414" dur="1.8s" repeatCount="indefinite" />
+          </circle>
+        </g>
+
+        <!-- STEP 2: API -> Redis -->
+        <g class="msg-step" id="step-2">
+          <line x1="426" y1="195" x2="694" y2="195" stroke="#38bdf8" class="msg-line" marker-end="url(#arrow-default)" />
+          <text x="560" y="187" text-anchor="middle" class="msg-label">2. GET user:42</text>
+          <circle cx="426" cy="195" r="4" class="packet-dot">
+            <animate attributeName="cx" from="426" to="694" dur="1.8s" repeatCount="indefinite" />
+          </circle>
+        </g>
+
+        <!-- STEP 3: Redis -> API (Cache Miss) -->
+        <g class="msg-step" id="step-3">
+          <line x1="694" y1="240" x2="426" y2="240" stroke="#fbbf24" stroke-dasharray="5 5" class="msg-line" marker-end="url(#arrow-miss)" />
+          <text x="560" y="232" text-anchor="middle" class="msg-label" fill="#fbbf24">3. (nil) — [CACHE MISS]</text>
+          <circle cx="694" cy="240" r="4" class="packet-dot" fill="#fbbf24">
+            <animate attributeName="cx" from="694" to="426" dur="1.8s" repeatCount="indefinite" />
+          </circle>
+        </g>
+
+        <!-- STEP 4: API -> PostgreSQL -->
+        <g class="msg-step" id="step-4">
+          <line x1="426" y1="320" x2="934" y2="320" stroke="#38bdf8" class="msg-line" marker-end="url(#arrow-default)" />
+          <text x="680" y="312" text-anchor="middle" class="msg-label">4. SELECT * FROM users WHERE id = 42</text>
+          <circle cx="426" cy="320" r="4" class="packet-dot">
+            <animate attributeName="cx" from="426" to="934" dur="1.8s" repeatCount="indefinite" />
+          </circle>
+        </g>
+
+        <!-- STEP 5: PostgreSQL -> API -->
+        <g class="msg-step" id="step-5">
+          <line x1="934" y1="375" x2="426" y2="375" stroke="#34d495" stroke-dasharray="5 5" class="msg-line" marker-end="url(#arrow-success)" />
+          <text x="680" y="367" text-anchor="middle" class="msg-label" fill="#34d495">5. Row Data { id: 42, name: 'Alice' }</text>
+          <circle cx="934" cy="375" r="4" class="packet-dot" fill="#34d495">
+            <animate attributeName="cx" from="934" to="426" dur="1.8s" repeatCount="indefinite" />
+          </circle>
+        </g>
+
+        <!-- STEP 6: API -> Redis (Cache Fill) -->
+        <g class="msg-step" id="step-6">
+          <line x1="426" y1="460" x2="694" y2="460" stroke="#34d495" class="msg-line" marker-end="url(#arrow-success)" />
+          <text x="560" y="452" text-anchor="middle" class="msg-label" fill="#34d495">6. SETEX user:42 3600 JSON(row)</text>
+          <circle cx="426" cy="460" r="4" class="packet-dot" fill="#34d495">
+            <animate attributeName="cx" from="426" to="694" dur="1.8s" repeatCount="indefinite" />
+          </circle>
+        </g>
+
+        <!-- STEP 7: Redis -> API (ACK) -->
+        <g class="msg-step" id="step-7">
+          <line x1="694" y1="500" x2="426" y2="500" stroke="#34d495" stroke-dasharray="5 5" class="msg-line" marker-end="url(#arrow-success)" />
+          <text x="560" y="492" text-anchor="middle" class="msg-label" fill="#34d495">7. +OK (Cache Populated)</text>
+          <circle cx="694" cy="500" r="4" class="packet-dot" fill="#34d495">
+            <animate attributeName="cx" from="694" to="426" dur="1.8s" repeatCount="indefinite" />
+          </circle>
+        </g>
+
+        <!-- STEP 8: API -> Browser -->
+        <g class="msg-step" id="step-8">
+          <line x1="414" y1="565" x2="156" y2="565" stroke="#38bdf8" stroke-dasharray="5 5" class="msg-line" marker-end="url(#arrow-default)" />
+          <text x="285" y="557" text-anchor="middle" class="msg-label">8. 200 OK { id: 42, cached: false }</text>
+          <circle cx="414" cy="565" r="4" class="packet-dot">
+            <animate attributeName="cx" from="414" to="156" dur="1.8s" repeatCount="indefinite" />
+          </circle>
+        </g>
+
+      </svg>
+    </div>
+
+    <!-- Explanatory Architecture Cards -->
+    <div class="legend-panel">
+      <div class="legend-card">
+        <h4 style="color: #38bdf8;"><span>⚡</span> Cache-Aside Pattern</h4>
+        <p style="color: var(--text-muted); line-height: 1.5;">
+          The application code directly manages cache synchronization. It probes Redis first; on a miss, it falls back to PostgreSQL and writes back to Redis with a TTL (e.g., 3600s).
+        </p>
+      </div>
+
+      <div class="legend-card">
+        <h4 style="color: #fbbf24;"><span>⚠️</span> Cache Miss Latency</h4>
+        <p style="color: var(--text-muted); line-height: 1.5;">
+          Step 3 incurs an unavoidable database round-trip (~15–30ms). However, subsequent requests will hit Step 2 and return in sub-millisecond time directly from Redis memory.
+        </p>
+      </div>
+
+      <div class="legend-card">
+        <h4 style="color: #34d495;"><span>🛡️</span> Data Consistency</h4>
+        <p style="color: var(--text-muted); line-height: 1.5;">
+          By populating the cache only after a verified PostgreSQL query (Step 6), stale data is prevented and future reads are immediately accelerated.
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let currentStep = 0; // 0 means show all
+    let autoPlayInterval = null;
+    let traceEnabled = true;
+
+    const totalSteps = 8;
+    const stepStatusEl = document.getElementById('stepStatus');
+    const playBtn = document.getElementById('playBtn');
+
+    function updateStepView() {
+      const allSteps = document.querySelectorAll('.msg-step');
+      if (currentStep === 0) {
+        allSteps.forEach(el => {
+          el.classList.remove('active-step', 'passed-step');
+          el.style.opacity = '1';
+        });
+        stepStatusEl.innerText = 'Viewing All 8 Steps (Continuous Motion)';
+      } else {
+        allSteps.forEach((el, idx) => {
+          const stepNum = idx + 1;
+          el.style.opacity = '';
+          if (stepNum === currentStep) {
+            el.classList.add('active-step');
+            el.classList.remove('passed-step');
+          } else if (stepNum < currentStep) {
+            el.classList.add('passed-step');
+            el.classList.remove('active-step');
+          } else {
+            el.classList.remove('active-step', 'passed-step');
+          }
+        });
+        const descriptions = [
+          "Step 1: Browser initiates HTTP GET /api/v1/users/42",
+          "Step 2: API routes key lookup to Redis (GET user:42)",
+          "Step 3: Redis returns (nil) — Cache Miss detected",
+          "Step 4: API falls back to PostgreSQL (SELECT query)",
+          "Step 5: PostgreSQL returns authoritative row data",
+          "Step 6: API writes row to Redis with 1h TTL (SETEX)",
+          "Step 7: Redis confirms cache write (+OK)",
+          "Step 8: API completes request with 200 OK JSON payload"
+        ];
+        stepStatusEl.innerText = descriptions[currentStep - 1] || `Step ${currentStep} of ${totalSteps}`;
+      }
+    }
+
+    function stepNext() {
+      stopAutoPlay();
+      currentStep = (currentStep >= totalSteps) ? 1 : currentStep + 1;
+      updateStepView();
+    }
+
+    function stepPrev() {
+      stopAutoPlay();
+      currentStep = (currentStep <= 1) ? totalSteps : currentStep - 1;
+      updateStepView();
+    }
+
+    function resetSteps() {
+      stopAutoPlay();
+      currentStep = 0;
+      updateStepView();
+    }
+
+    function toggleAutoPlay() {
+      if (autoPlayInterval) {
+        stopAutoPlay();
+      } else {
+        startAutoPlay();
+      }
+    }
+
+    function startAutoPlay() {
+      if (currentStep === 0) currentStep = 1;
+      updateStepView();
+      playBtn.innerText = '⏸ Pause';
+      playBtn.classList.add('active');
+      autoPlayInterval = setInterval(() => {
+        currentStep = (currentStep >= totalSteps) ? 1 : currentStep + 1;
+        updateStepView();
+      }, 2000);
+    }
+
+    function stopAutoPlay() {
+      if (autoPlayInterval) {
+        clearInterval(autoPlayInterval);
+        autoPlayInterval = null;
+        playBtn.innerText = '▶ Play Trace';
+        playBtn.classList.remove('active');
+      }
+    }
+
+    function toggleTrace() {
+      const wrapper = document.getElementById('diagramWrapper');
+      const stateEl = document.getElementById('traceState');
+      const btn = document.getElementById('traceBtn');
+      traceEnabled = !traceEnabled;
+      if (traceEnabled) {
+        wrapper.classList.add('trace-active');
+        stateEl.innerText = 'ON';
+        btn.classList.add('active');
+      } else {
+        wrapper.classList.remove('trace-active');
+        stateEl.innerText = 'OFF';
+        btn.classList.remove('active');
+      }
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      document.getElementById('themeIcon').innerText = next === 'dark' ? '☀️' : '🌙';
+    }
+
+    // Initialize
+    updateStepView();
+  </script>
+</body>
+</html>

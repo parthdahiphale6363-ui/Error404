@@ -1,0 +1,137 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tt-a1i/archify/main/archify/schemas/sequence.schema.json",
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Web Request: Browser API Call with Redis Cache Miss & PostgreSQL Query",
+    "output": ".archify/sequence-web-request-cache-miss-20261011-170327/web-request-cache-miss.html",
+    "viewBox": [1080, 640],
+    "column_fit": "spread",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "generator": "archify-v3.0"
+  },
+  "participants": [
+    {
+      "id": "browser",
+      "type": "frontend",
+      "label": "Browser",
+      "sublabel": "Client Session / SPA",
+      "icon": "globe"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API Server",
+      "sublabel": "HTTP Route Handler",
+      "icon": "server"
+    },
+    {
+      "id": "redis",
+      "type": "database",
+      "label": "Redis",
+      "sublabel": "In-Memory Cache (Key-Value)",
+      "icon": "zap"
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "Relational Source of Truth",
+      "icon": "database"
+    }
+  ],
+  "segments": [
+    {
+      "from": 120,
+      "to": 250,
+      "label": "Phase 1: Inbound HTTP Call & Cache Probe"
+    },
+    {
+      "from": 260,
+      "to": 410,
+      "label": "Phase 2: Cache Miss & PostgreSQL Query"
+    },
+    {
+      "from": 420,
+      "to": 560,
+      "label": "Phase 3: Cache Populate (SETEX) & HTTP Response"
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg_01",
+      "from": "browser",
+      "to": "api",
+      "y": 140,
+      "label": "1. GET /api/v1/users/42",
+      "variant": "call",
+      "async": false
+    },
+    {
+      "id": "msg_02",
+      "from": "api",
+      "to": "redis",
+      "y": 190,
+      "label": "2. GET user:42",
+      "variant": "call",
+      "async": false
+    },
+    {
+      "id": "msg_03",
+      "from": "redis",
+      "to": "api",
+      "y": 235,
+      "label": "3. (nil) — Cache Miss",
+      "variant": "return",
+      "dashed": true,
+      "status": "miss"
+    },
+    {
+      "id": "msg_04",
+      "from": "api",
+      "to": "postgres",
+      "y": 310,
+      "label": "4. SELECT * FROM users WHERE id = 42",
+      "variant": "call",
+      "async": false
+    },
+    {
+      "id": "msg_05",
+      "from": "postgres",
+      "to": "api",
+      "y": 370,
+      "label": "5. Row { id: 42, name: 'Alice', ... }",
+      "variant": "return",
+      "dashed": true,
+      "status": "found"
+    },
+    {
+      "id": "msg_06",
+      "from": "api",
+      "to": "redis",
+      "y": 450,
+      "label": "6. SETEX user:42 3600 JSON(row)",
+      "variant": "call",
+      "async": false
+    },
+    {
+      "id": "msg_07",
+      "from": "redis",
+      "to": "api",
+      "y": 495,
+      "label": "7. +OK (Cache Filled)",
+      "variant": "return",
+      "dashed": true
+    },
+    {
+      "id": "msg_08",
+      "from": "api",
+      "to": "browser",
+      "y": 540,
+      "label": "8. 200 OK { id: 42, name: 'Alice', cached: false }",
+      "variant": "return",
+      "dashed": true
+    }
+  ]
+}

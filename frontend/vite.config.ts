@@ -9,9 +9,21 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
+        secure: false,
         rewrite: (path) => path.replace(/^\/api/, ''),
+        configure: (proxy) => {
+          proxy.on('error', (_err, _req, res) => {
+            if (res && 'writeHead' in res && typeof (res as import('http').ServerResponse).writeHead === 'function') {
+              const serverRes = res as import('http').ServerResponse
+              if (!serverRes.headersSent) {
+                serverRes.writeHead(503, { 'Content-Type': 'application/json' })
+                serverRes.end(JSON.stringify({ message: 'Backend initializing or reloading...' }))
+              }
+            }
+          })
+        },
       },
     },
   },

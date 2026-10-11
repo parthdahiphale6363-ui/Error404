@@ -1,1 +1,54 @@
-/* Custom animations and styling extensions */
+/* Glassmorphism Badge and Neon Highlights */
+
+.neon-border-rose {
+  border-color: rgba(244, 63, 94, 0.45);
+  box-shadow: 0 0 15px -3px rgba(244, 63, 94, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.neon-border-amber {
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow: 0 0 15px -3px rgba(245, 158, 11, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.neon-border-emerald {
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 0 15px -3px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.neon-border-sky {
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 0 15px -3px rgba(56, 189, 248, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.glow-btn-rose {
+  background: linear-gradient(135deg, rgba(225, 29, 72, 0.9) 0%, rgba(190, 18, 60, 0.85) 100%);
+  box-shadow: 0 4px 20px rgba(225, 29, 72, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glow-btn-rose:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(225, 29, 72, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.glow-btn-sky {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.9) 0%, rgba(3, 105, 161, 0.85) 100%);
+  box-shadow: 0 4px 20px rgba(2, 132, 199, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glow-btn-sky:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(2, 132, 199, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.glow-btn-emerald {
+  background: linear-gradient(135deg, rgba(5, 150, 105, 0.9) 0%, rgba(4, 120, 87, 0.85) 100%);
+  box-shadow: 0 4px 20px rgba(5, 150, 105, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glow-btn-emerald:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(5, 150, 105, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}

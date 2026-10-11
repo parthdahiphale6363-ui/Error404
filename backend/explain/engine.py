@@ -96,19 +96,27 @@ class ExplainEngine:
         # Compose grounded 2-line explanation
         line1 = f"Risk for {ticker} elevated due to {top_risk_type} exposure regarding {top_title.lower()} [{top_id}]."
 
-        if recurrence:
-            rec = recurrence[0]
-            rel_id = rec["related_item_id"]
-            topic = rec["topic"]
+        # Identify distinct recurrence item (different from top_id)
+        distinct_rec = [r for r in recurrence if r.get("related_item_id") != top_id and r.get("related_item_id") in valid_ids]
+        top_rec = [r for r in distinct_rec if r.get("item_id") == top_id]
+        chosen_rec = top_rec[0] if top_rec else (distinct_rec[0] if distinct_rec else None)
+
+        # Identify distinct cross-company contagion item
+        distinct_con = [c for c in contagion if c.get("related_item_id") != top_id and c.get("related_item_id") in valid_ids]
+        top_con = [c for c in distinct_con if c.get("item_id") == top_id]
+        chosen_con = top_con[0] if top_con else (distinct_con[0] if distinct_con else None)
+
+        if chosen_rec:
+            rel_id = chosen_rec["related_item_id"]
+            topic = chosen_rec["topic"]
             line2 = f"Graph evidence links recurring '{topic}' issues to historical filing [{rel_id}]."
-        elif len(sorted_items) > 1:
+        elif len(sorted_items) > 1 and sorted_items[1]["id"] != top_id:
             second_id = sorted_items[1]["id"]
             line2 = f"Corroborated by additional filing [{second_id}] in recent surveillance window."
-        elif contagion:
-            con = contagion[0]
-            rel_id = con["related_item_id"]
-            other_comp = con.get("other_company", "peer institutions")
-            topic = con["topic"]
+        elif chosen_con:
+            rel_id = chosen_con["related_item_id"]
+            other_comp = chosen_con.get("other_company", "peer institutions")
+            topic = chosen_con["topic"]
             line2 = f"Contagion pattern identified: peer '{topic}' exposure observed at {other_comp} [{rel_id}]."
         else:
             line2 = f"All active signals remain isolated to primary disclosure [{top_id}]."

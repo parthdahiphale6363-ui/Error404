@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Archify — Corporate Risk Radar: Complete System Architecture & Pipeline Workflow</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #060911;
+      --bg-surface: #0b1120;
+      --bg-card: rgba(15, 23, 42, 0.75);
+      --border: rgba(255, 255, 255, 0.1);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-sky: #38bdf8;
+      --accent-indigo: #818cf8;
+      --accent-purple: #c084fc;
+      --accent-emerald: #34d495;
+      --accent-amber: #fbbf24;
+      --accent-rose: #f43f5e;
+    }
+
+    [data-theme="light"] {
+      --bg-primary: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-card: rgba(255, 255, 255, 0.9);
+      --border: rgba(0, 0, 0, 0.1);
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --accent-sky: #0284c7;
+      --accent-indigo: #4f46e5;
+      --accent-purple: #9333ea;
+      --accent-emerald: #059669;
+      --accent-amber: #d97706;
+      --accent-rose: #e11d48;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+
+    /* Top Bar */
+    header {
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-card);
+      backdrop-filter: blur(14px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .badge-archify {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-sky);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button.tool-btn {
+      background: var(--bg-surface);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 13px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    button.tool-btn:hover {
+      border-color: var(--accent-sky);
+      color: var(--accent-sky);
+      transform: translateY(-1px);
+    }
+
+    button.tool-btn.active {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent-sky);
+      color: var(--accent-sky);
+    }
+
+    /* Canvas Area */
+    main {
+      flex: 1;
+      padding: 24px 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .canvas-container {
+      width: 100%;
+      max-width: 1480px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.6);
+      padding: 20px;
+      position: relative;
+      overflow-x: auto;
+    }
+
+    svg {
+      width: 100%;
+      min-width: 1400px;
+      height: auto;
+      display: block;
+      user-select: none;
+    }
+
+    /* SVG Diagram Styling */
+    .boundary-box {
+      rx: 16;
+      ry: 16;
+      stroke-width: 1.5;
+      transition: stroke 0.2s, fill 0.2s;
+    }
+
+    .node-card {
+      cursor: pointer;
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s;
+    }
+
+    .node-card:hover {
+      filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.35));
+    }
+
+    .node-card.selected rect {
+      stroke: var(--accent-sky) !important;
+      stroke-width: 2.5 !important;
+      filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.6));
+    }
+
+    .route-path {
+      fill: none;
+      stroke-width: 1.8;
+      transition: stroke-width 0.2s, stroke 0.2s;
+    }
+
+    .route-path:hover {
+      stroke-width: 3.5;
+      stroke: var(--accent-sky) !important;
+    }
+
+    .route-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9.5px;
+      font-weight: 600;
+      fill: var(--text-muted);
+      paint-order: stroke fill;
+      stroke: var(--bg-surface);
+      stroke-width: 3px;
+      stroke-linejoin: round;
+    }
+
+    /* Animated packet pulses */
+    .trace-active .pulse-dot {
+      display: block;
+    }
+
+    .pulse-dot {
+      display: none;
+      r: 3.5;
+      fill: #38bdf8;
+      filter: drop-shadow(0 0 6px #38bdf8);
+    }
+
+    /* Node Inspector Drawer */
+    .inspector-panel {
+      width: 100%;
+      max-width: 1480px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .inspector-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+
+    .inspector-field {
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border);
+    }
+
+    .inspector-field label {
+      display: block;
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+
+    .inspector-field value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-main);
+      display: block;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <span class="badge-archify">Archify Architecture</span>
+      <div>
+        <h1 style="font-size: 15px; font-weight: 700;">Corporate Risk Radar — Complete Architecture & Workflow</h1>
+        <p style="font-size: 11px; color: var(--text-muted);">End-to-End API Integrations, Dual-LLM Consensus & Graph Topology Pipeline</p>
+      </div>
+    </div>
+
+    <div class="toolbar-actions">
+      <button class="tool-btn active" id="traceToggleBtn" onclick="toggleTrace()">
+        <span id="traceDot">●</span> Pipeline Trace: <strong id="traceState">ON</strong>
+      </button>
+      <button class="tool-btn" onclick="filterLayer('all')">All Layers</button>
+      <button class="tool-btn" onclick="filterLayer('feeds')">Feeds & Ingest</button>
+      <button class="tool-btn" onclick="filterLayer('ai')">Dual-LLM AI</button>
+      <button class="tool-btn" onclick="filterLayer('graph')">Graph & Scoring</button>
+      <button class="tool-btn" onclick="toggleTheme()">
+        <span id="themeIcon">☀️</span> Theme
+      </button>
+      <button class="tool-btn" onclick="window.print()">
+        <span>⎙</span> Export
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Architecture Viewport -->
+  <main>
+    <div class="canvas-container trace-active" id="diagramWrapper">
+      <svg viewBox="0 0 1440 880" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <!-- Arrow Markers -->
+          <marker id="arr-sky" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+          </marker>
+          <marker id="arr-indigo" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#818cf8" />
+          </marker>
+          <marker id="arr-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#c084fc" />
+          </marker>
+          <marker id="arr-emerald" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d495" />
+          </marker>
+          <marker id="arr-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#fbbf24" />
+          </marker>
+          <marker id="arr-rose" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#f43f5e" />
+          </marker>
+        </defs>
+
+        <!-- ================= BOUNDARIES (5 LOGICAL TIERS) ================= -->
+
+        <!-- 1. External Feeds & LLMs (x: 30, w: 230) -->
+        <g id="layer-feeds">
+          <rect x="30" y="40" width="230" height="800" class="boundary-box" fill="rgba(56, 189, 248, 0.025)" stroke="rgba(56, 189, 248, 0.2)" />
+          <text x="50" y="70" font-size="12" font-weight="800" fill="#38bdf8" letter-spacing="0.05em">1. EXTERNAL INTELLIGENCE FEEDS</text>
+          <text x="50" y="86" font-size="9.5" fill="#94a3b8">REST & SEC Polling / Cloud APIs</text>
+        </g>
+
+        <!-- 2. API Gateway & Ingest Pipeline (x: 290, w: 260) -->
+        <g id="layer-ingest">
+          <rect x="290" y="40" width="260" height="800" class="boundary-box" fill="rgba(129, 140, 248, 0.025)" stroke="rgba(129, 140, 248, 0.2)" />
+          <text x="310" y="70" font-size="12" font-weight="800" fill="#818cf8" letter-spacing="0.05em">2. API GATEWAY & INGESTION</text>
+          <text x="310" y="86" font-size="9.5" fill="#94a3b8">Disk Cache, Deduplication & Scheduler</text>
+        </g>
+
+        <!-- 3. Dual-LLM AI Detection & Consensus (x: 580, w: 260) -->
+        <g id="layer-ai">
+          <rect x="580" y="40" width="260" height="800" class="boundary-box" fill="rgba(192, 132, 252, 0.025)" stroke="rgba(192, 132, 252, 0.2)" />
+          <text x="600" y="70" font-size="12" font-weight="800" fill="#c084fc" letter-spacing="0.05em">3. DUAL-LLM DETECTION & CONSENSUS</text>
+          <text x="600" y="86" font-size="9.5" fill="#94a3b8">Mistral 7B + Blind Verifier (Gemini)</text>
+        </g>
+
+        <!-- 4. Graph Repository & Scoring Engine (x: 870, w: 270) -->
+        <g id="layer-graph">
+          <rect x="870" y="40" width="270" height="800" class="boundary-box" fill="rgba(52, 211, 149, 0.025)" stroke="rgba(52, 211, 149, 0.2)" />
+          <text x="890" y="70" font-size="12" font-weight="800" fill="#34d495" letter-spacing="0.05em">4. GRAPH REPO & SCORING FORMULA</text>
+          <text x="890" y="86" font-size="9.5" fill="#94a3b8">Neo4j AuraDB, Half-Life Decay, Alerts</text>
+        </g>
+
+        <!-- 5. FastAPI Application & React UI (x: 1170, w: 240) -->
+        <g id="layer-client">
+          <rect x="1170" y="40" width="240" height="800" class="boundary-box" fill="rgba(251, 191, 36, 0.025)" stroke="rgba(251, 191, 36, 0.2)" />
+          <text x="1190" y="70" font-size="12" font-weight="800" fill="#fbbf24" letter-spacing="0.05em">5. FASTAPI & REACT CLIENT</text>
+          <text x="1190" y="86" font-size="9.5" fill="#94a3b8">Endpoints, SSE Streams & Glassmorphic UI</text>
+        </g>
+
+
+        <!-- ================= CONNECTING ROUTES & ARROWS ================= -->
+
+        <!-- Finnhub -> Gateway -->
+        <path d="M 230 145 L 310 145" class="route-path" stroke="#38bdf8" marker-end="url(#arr-sky)" />
+        <text x="270" y="137" class="route-label" text-anchor="middle">60s Poll</text>
+        <circle cx="230" cy="145" class="pulse-dot"><animate attributeName="cx" from="230" to="310" dur="2s" repeatCount="indefinite" /></circle>
+
+        <!-- CFPB -> Gateway -->
+        <path d="M 230 250 L 260 250 L 260 170 L 310 170" class="route-path" stroke="#38bdf8" marker-end="url(#arr-sky)" />
+        <text x="260" y="220" class="route-label" text-anchor="middle">900s CFPB</text>
+
+        <!-- EDGAR -> Gateway -->
+        <path d="M 230 355 L 270 355 L 270 195 L 310 195" class="route-path" stroke="#38bdf8" marker-end="url(#arr-sky)" />
+        <text x="270" y="300" class="route-label" text-anchor="middle">900s EDGAR</text>
+
+        <!-- Gateway -> Ingest -->
+        <path d="M 420 220 L 420 290" class="route-path" stroke="#818cf8" marker-end="url(#arr-indigo)" />
+        <text x="430" y="258" class="route-label">Item Model</text>
+        <circle cx="420" cy="220" class="pulse-dot"><animate attributeName="cy" from="220" to="290" dur="1.8s" repeatCount="indefinite" /></circle>
+
+        <!-- Ingest -> Deduplication -->
+        <path d="M 420 370 L 420 440" class="route-path" stroke="#818cf8" marker-end="url(#arr-indigo)" />
+        <text x="430" y="408" class="route-label">Raw Hashes</text>
+
+        <!-- Deduplication -> Keyword Filter -->
+        <path d="M 530 480 L 600 480 L 600 160 L 620 160" class="route-path" stroke="#818cf8" marker-end="url(#arr-indigo)" />
+        <text x="575" y="420" class="route-label" text-anchor="middle">Unique Items</text>
+
+        <!-- Keyword Filter -> Detection Engine -->
+        <path d="M 710 200 L 710 290" class="route-path" stroke="#c084fc" marker-end="url(#arr-purple)" />
+        <text x="720" y="248" class="route-label">Candidate Terms</text>
+
+        <!-- Detection Engine <-> Mistral 7B API -->
+        <path d="M 620 320 L 230 490" class="route-path" stroke="#c084fc" stroke-dasharray="4 4" marker-end="url(#arr-purple)" />
+        <text x="410" y="420" class="route-label" text-anchor="middle">Classify Prompt / Strict JSON</text>
+
+        <!-- Detection Engine -> Consensus -->
+        <path d="M 710 370 L 710 440" class="route-path" stroke="#c084fc" marker-end="url(#arr-purple)" />
+        <text x="720" y="408" class="route-label">Sev &ge; 3 Flagged</text>
+
+        <!-- Consensus <-> Gemini Blind Verifier -->
+        <path d="M 620 480 L 230 610" class="route-path" stroke="#c084fc" stroke-dasharray="4 4" marker-end="url(#arr-purple)" />
+        <text x="400" y="560" class="route-label" text-anchor="middle">Blind 2nd Opinion (Isolated)</text>
+
+        <!-- Consensus -> Review Queue -->
+        <path d="M 710 520 L 710 600" class="route-path" stroke="#fbbf24" marker-end="url(#arr-amber)" />
+        <text x="720" y="565" class="route-label">Divergence (0.5x)</text>
+
+        <!-- Consensus -> Mathematical Scoring -->
+        <path d="M 800 480 L 890 480 L 890 160 L 910 160" class="route-path" stroke="#34d495" marker-end="url(#arr-emerald)" />
+        <text x="850" y="430" class="route-label" text-anchor="middle">Agreed Items (1.0x)</text>
+
+        <!-- Scoring -> Neo4j AuraDB -->
+        <path d="M 1005 200 L 1005 290" class="route-path" stroke="#34d495" marker-end="url(#arr-emerald)" />
+        <text x="1015" y="248" class="route-label">ScorePoints & Edges</text>
+
+        <!-- Neo4j -> Explain Engine -->
+        <path d="M 1005 370 L 1005 440" class="route-path" stroke="#34d495" marker-end="url(#arr-emerald)" />
+        <text x="1015" y="408" class="route-label">Multi-Hop Traversal</text>
+
+        <!-- Scoring -> Alerts Engine -->
+        <path d="M 1005 520 L 1005 600" class="route-path" stroke="#f43f5e" marker-end="url(#arr-rose)" />
+        <text x="1015" y="565" class="route-label">Rules A, B, C Triggers</text>
+
+        <!-- Alerts Engine -> Resend API -->
+        <path d="M 910 650 L 230 735" class="route-path" stroke="#f43f5e" stroke-dasharray="4 4" marker-end="url(#arr-rose)" />
+        <text x="560" y="700" class="route-label" text-anchor="middle">HTML Alert Email / Dry-run Outbox</text>
+
+        <!-- Neo4j + Explain -> FastAPI -->
+        <path d="M 1100 330 L 1190 330 L 1190 170 L 1210 170" class="route-path" stroke="#fbbf24" marker-end="url(#arr-amber)" />
+        <text x="1150" y="270" class="route-label" text-anchor="middle">Graph Topology</text>
+
+        <!-- Review Queue -> FastAPI -->
+        <path d="M 800 640 L 1180 640 L 1180 200 L 1210 200" class="route-path" stroke="#fbbf24" marker-end="url(#arr-amber)" />
+        <text x="1000" y="630" class="route-label" text-anchor="middle">GET /review-queue & /review-log</text>
+
+        <!-- FastAPI -> SSE Stream -->
+        <path d="M 1290 220 L 1290 310" class="route-path" stroke="#fbbf24" marker-end="url(#arr-amber)" />
+        <text x="1300" y="268" class="route-label">10s Heartbeat</text>
+
+        <!-- FastAPI + Stream -> React UI -->
+        <path d="M 1290 390 L 1290 480" class="route-path" stroke="#38bdf8" marker-end="url(#arr-sky)" />
+        <text x="1300" y="438" class="route-label">REST & Push</text>
+
+
+        <!-- ================= COMPONENT NODES ================= -->
+
+        <!-- 1.1 Finnhub -->
+        <g class="node-card" onclick="selectNode('finnhub')" transform="translate(50, 110)">
+          <rect width="180" height="65" rx="10" fill="#0c1729" stroke="#0284c7" stroke-width="1.5" />
+          <text x="16" y="28" font-size="12.5" font-weight="700" fill="#38bdf8">📰 Finnhub API</text>
+          <text x="16" y="46" font-size="10" fill="#94a3b8">Market News & Sentiment</text>
+        </g>
+
+        <!-- 1.2 CFPB -->
+        <g class="node-card" onclick="selectNode('cfpb')" transform="translate(50, 215)">
+          <rect width="180" height="65" rx="10" fill="#0c1729" stroke="#0284c7" stroke-width="1.5" />
+          <text x="16" y="28" font-size="12.5" font-weight="700" fill="#38bdf8">🛡️ CFPB API</text>
+          <text x="16" y="46" font-size="10" fill="#94a3b8">Consumer Complaints DB</text>
+        </g>
+
+        <!-- 1.3 SEC EDGAR -->
+        <g class="node-card" onclick="selectNode('edgar')" transform="translate(50, 320)">
+          <rect width="180" height="65" rx="10" fill="#0c1729" stroke="#0284c7" stroke-width="1.5" />
+          <text x="16" y="28" font-size="12.5" font-weight="700" fill="#38bdf8">🏛️ SEC EDGAR</text>
+          <text x="16" y="46" font-size="10" fill="#94a3b8">8-K, 10-K & Submissions</text>
+        </g>
+
+        <!-- 1.4 Mistral 7B -->
+        <g class="node-card" onclick="selectNode('mistral')" transform="translate(50, 460)">
+          <rect width="180" height="65" rx="10" fill="#1e1035" stroke="#9333ea" stroke-width="1.5" />
+          <text x="16" y="28" font-size="12.5" font-weight="700" fill="#c084fc">⚡ Mistral 7B API</text>
+          <text x="16" y="46" font-size="10" fill="#94a3b8">Pinned open-mistral-7b</text>
+        </g>
+
+        <!-- 1.5 Gemini / Groq Blind Verifier -->
+        <g class="node-card" onclick="selectNode('verifier')" transform="translate(50, 575)">
+          <rect width="180" height="65" rx="10" fill="#1e1035" stroke="#9333ea" stroke-width="1.5" />
+          <text x="16" y="28" font-size="12.5" font-weight="700" fill="#c084fc">👁️ Gemini / Groq</text>
+          <text x="16" y="46" font-size="10" fill="#94a3b8">Blind Second Opinion</text>
+        </g>
+
+        <!-- 1.6 Resend Email -->
+        <g class="node-card" onclick="selectNode('resend')" transform="translate(50, 700)">
+          <rect width="180" height="65" rx="10" fill="#2d121c" stroke="#e11d48" stroke-width="1.5" />
+          <text x="16" y="28" font-size="12.5" font-weight="700" fill="#f43f5e">✉️ Resend Service</text>
+          <text x="16" y="46" font-size="10" fill="#94a3b8">Transactional Dispatch</text>
+        </g>
+
+        <!-- 2.1 API Gateway -->
+        <g class="node-card" onclick="selectNode('gateway')" transform="translate(310, 140)">
+          <rect width="220" height="75" rx="12" fill="#121533" stroke="#4f46e5" stroke-width="1.5" />
+          <text x="16" y="30" font-size="13" font-weight="700" fill="#818cf8">🔐 API Gateway</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">Rate Limits & Disk Cache</text>
+          <text x="16" y="63" font-size="9" font-family="'JetBrains Mono', monospace" fill="#6366f1">data/cache & raw logs</text>
+        </g>
+
+        <!-- 2.2 Ingestion Coordinator -->
+        <g class="node-card" onclick="selectNode('ingest')" transform="translate(310, 290)">
+          <rect width="220" height="75" rx="12" fill="#121533" stroke="#4f46e5" stroke-width="1.5" />
+          <text x="16" y="30" font-size="13" font-weight="700" fill="#818cf8">⚙️ Ingestion Pipeline</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">Schema Normalization</text>
+          <text x="16" y="63" font-size="9" font-family="'JetBrains Mono', monospace" fill="#6366f1">backend/ingest/pipeline.py</text>
+        </g>
+
+        <!-- 2.3 Deduplication -->
+        <g class="node-card" onclick="selectNode('dedup')" transform="translate(310, 440)">
+          <rect width="220" height="75" rx="12" fill="#121533" stroke="#4f46e5" stroke-width="1.5" />
+          <text x="16" y="30" font-size="13" font-weight="700" fill="#818cf8">🛡️ Deduplication</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">SHA-256 Hash Matching</text>
+          <text x="16" y="63" font-size="9" font-family="'JetBrains Mono', monospace" fill="#6366f1">0 Duplicates on Re-run</text>
+        </g>
+
+        <!-- 2.4 Scheduler -->
+        <g class="node-card" onclick="selectNode('scheduler')" transform="translate(310, 600)">
+          <rect width="220" height="75" rx="12" fill="#121533" stroke="#4f46e5" stroke-width="1.5" />
+          <text x="16" y="30" font-size="13" font-weight="700" fill="#818cf8">⏱️ Task Scheduler</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">Threaded Periodic Jobs</text>
+          <text x="16" y="63" font-size="9" font-family="'JetBrains Mono', monospace" fill="#6366f1">60s / 900s / 3600s cycles</text>
+        </g>
+
+        <!-- 3.1 Keyword Pre-filter -->
+        <g class="node-card" onclick="selectNode('filter')" transform="translate(600, 125)">
+          <rect width="220" height="75" rx="12" fill="#201138" stroke="#9333ea" stroke-width="1.5" />
+          <text x="16" y="30" font-size="13" font-weight="700" fill="#c084fc">🔍 Keyword Pre-Filter</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">Legal / Compliance Sets</text>
+          <text x="16" y="63" font-size="9" font-family="'JetBrains Mono', monospace" fill="#a855f7">Zero-cost Noise Bypass</text>
+        </g>
+
+        <!-- 3.2 Detection Engine -->
+        <g class="node-card" onclick="selectNode('detect')" transform="translate(600, 290)">
+          <rect width="220" height="75" rx="12" fill="#201138" stroke="#9333ea" stroke-width="1.5" />
+          <text x="16" y="30" font-size="13" font-weight="700" fill="#c084fc">🧠 Detection Engine</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">Mistral Strict Classifier</text>
+          <text x="16" y="63" font-size="9" font-family="'JetBrains Mono', monospace" fill="#a855f7">Severity 1-5 & Risk Type</text>
+        </g>
+
+        <!-- 3.3 Consensus Engine -->
+        <g class="node-card" onclick="selectNode('consensus')" transform="translate(600, 440)">
+          <rect width="220" height="75" rx="12" fill="#201138" stroke="#9333ea" stroke-width="1.5" />
+          <text x="16" y="30" font-size="13" font-weight="700" fill="#c084fc">⚖️ Consensus Engine</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">Blind Second Opinion</text>
+          <text x="16" y="63" font-size="9" font-family="'JetBrains Mono', monospace" fill="#a855f7">1.0 Agree vs 0.5 Review</text>
+        </g>
+
+        <!-- 3.4 Review Queue State -->
+        <g class="node-card" onclick="selectNode('review_lane')" transform="translate(600, 600)">
+          <rect width="220" height="75" rx="12" fill="#201138" stroke="#9333ea" stroke-width="1.5" />
+          <text x="16" y="30" font-size="13" font-weight="700" fill="#c084fc">👥 Analyst Review Lane</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">Human Decision Gateway</text>
+          <text x="16" y="63" font-size="9" font-family="'JetBrains Mono', monospace" fill="#a855f7">Confirm (1.0) / Dismiss (0.0)</text>
+        </g>
+
+        <!-- 4.1 Mathematical Scoring -->
+        <g class="node-card" onclick="selectNode('scoring')" transform="translate(890, 125)">
+          <rect width="230" height="75" rx="12" fill="#09241b" stroke="#059669" stroke-width="1.5" />
+          <text x="16" y="30" font-size="13" font-weight="700" fill="#34d495">📐 Risk Index Formula</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">7-Day Half-Life Decay</text>
+          <text x="16" y="63" font-size="9" font-family="'JetBrains Mono', monospace" fill="#10b981">0-100 Score & Z-Spike</text>
+        </g>
+
+        <!-- 4.2 Neo4j AuraDB Graph -->
+        <g class="node-card" onclick="selectNode('neo4j')" transform="translate(890, 290)">
+          <rect width="230" height="75" rx="12" fill="#09241b" stroke="#059669" stroke-width="1.5" />
+          <text x="16" y="30" font-size="13" font-weight="700" fill="#34d495">🌐 Neo4j Knowledge Graph</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">Item, Topic, Regulator Edges</text>
+          <text x="16" y="63" font-size="9" font-family="'JetBrains Mono', monospace" fill="#10b981">Dual-write In-Memory Safe</text>
+        </g>
+
+        <!-- 4.3 Multi-hop Explainer -->
+        <g class="node-card" onclick="selectNode('explain')" transform="translate(890, 440)">
+          <rect width="230" height="75" rx="12" fill="#09241b" stroke="#059669" stroke-width="1.5" />
+          <text x="16" y="30" font-size="13" font-weight="700" fill="#34d495">🧭 Explain Engine</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">Multi-Hop Traversal</text>
+          <text x="16" y="63" font-size="9" font-family="'JetBrains Mono', monospace" fill="#10b981">Zero-Hallucination [id]</text>
+        </g>
+
+        <!-- 4.4 Alerts Engine -->
+        <g class="node-card" onclick="selectNode('alerts')" transform="translate(890, 600)">
+          <rect width="230" height="75" rx="12" fill="#09241b" stroke="#059669" stroke-width="1.5" />
+          <text x="16" y="30" font-size="13" font-weight="700" fill="#34d495">🚨 Alerts Engine</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">Rules A, B, C & Cooldown</text>
+          <text x="16" y="63" font-size="9" font-family="'JetBrains Mono', monospace" fill="#10b981">data/outbox HTML preview</text>
+        </g>
+
+        <!-- 5.1 FastAPI App -->
+        <g class="node-card" onclick="selectNode('fastapi')" transform="translate(1190, 145)">
+          <rect width="200" height="75" rx="12" fill="#261b0c" stroke="#d97706" stroke-width="1.5" />
+          <text x="16" y="30" font-size="13" font-weight="700" fill="#fbbf24">⚡ FastAPI Server</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">Contract REST Routes</text>
+          <text x="16" y="63" font-size="9" font-family="'JetBrains Mono', monospace" fill="#f59e0b">port 8000 / OpenAPI</text>
+        </g>
+
+        <!-- 5.2 SSE Stream -->
+        <g class="node-card" onclick="selectNode('stream')" transform="translate(1190, 310)">
+          <rect width="200" height="75" rx="12" fill="#261b0c" stroke="#d97706" stroke-width="1.5" />
+          <text x="16" y="30" font-size="13" font-weight="700" fill="#fbbf24">📡 SSE Live Push</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">GET /stream Event Hub</text>
+          <text x="16" y="63" font-size="9" font-family="'JetBrains Mono', monospace" fill="#f59e0b">text/event-stream</text>
+        </g>
+
+        <!-- 5.3 React UI -->
+        <g class="node-card" onclick="selectNode('react_ui')" transform="translate(1190, 480)">
+          <rect width="200" height="85" rx="12" fill="#0d1b2a" stroke="#0284c7" stroke-width="1.8" />
+          <text x="16" y="30" font-size="13" font-weight="800" fill="#38bdf8">💻 React 19 Client</text>
+          <text x="16" y="48" font-size="10.5" fill="#94a3b8">Glassmorphic Dashboard</text>
+          <text x="16" y="63" font-size="9.5" fill="#cbd5e1">Scoreboard · Review · Graph</text>
+          <text x="16" y="77" font-size="8.5" font-family="'JetBrains Mono', monospace" fill="#38bdf8">Celestial Night Sky UI</text>
+        </g>
+
+      </svg>
+    </div>
+
+    <!-- Interactive Component Inspection Card -->
+    <div class="inspector-panel" id="inspectorBox">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <h3 id="inspectTitle" style="font-size: 15px; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 8px;">
+          <span>🌐</span> Select any component card above to inspect architecture details & code paths
+        </h3>
+        <span id="inspectBadge" style="font-size: 11px; padding: 2px 10px; border-radius: 999px; background: rgba(255,255,255,0.06); font-family: monospace;">
+          Interactive Inspector
+        </span>
+      </div>
+
+      <div class="inspector-grid" id="inspectGrid">
+        <div class="inspector-field">
+          <label>Module / Responsibility</label>
+          <value id="inspectModule">Corporate Risk Radar Pipeline</value>
+        </div>
+        <div class="inspector-field">
+          <label>Source File Location</label>
+          <value id="inspectPath">backend/ & frontend/</value>
+        </div>
+        <div class="inspector-field">
+          <label>Protocol / Execution Rate</label>
+          <value id="inspectTiming">Real-time / Event-driven / Scheduled</value>
+        </div>
+        <div class="inspector-field">
+          <label>Fail-Safe & Resilience Guarantee</label>
+          <value id="inspectResilience">100% In-Memory Fallback & Strict Guards</value>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let traceActive = true;
+
+    const nodeMetadata = {
+      finnhub: {
+        title: "📰 Finnhub News & Market Sentiment API",
+        badge: "External Data Feed",
+        module: "Financial news sentiment and headline monitoring",
+        path: "backend/apigateway/adapters/finnhub.py",
+        timing: "Polled every 60 seconds (rate limited)",
+        resilience: "Cached in data/cache/, falls back to local disk fixtures"
+      },
+      cfpb: {
+        title: "🛡️ CFPB Consumer Financial Complaints API",
+        badge: "Regulatory Feed",
+        module: "High-signal consumer narratives & enforcement cases",
+        path: "backend/apigateway/adapters/cfpb.py",
+        timing: "Polled every 900 seconds (strict narrative filter)",
+        resilience: "User-Agent compliance, rejects empty narratives"
+      },
+      edgar: {
+        title: "🏛️ SEC EDGAR Submissions API",
+        badge: "Securities Filing Feed",
+        module: "8-K, 10-K, 10-Q corporate disclosures and legal notes",
+        path: "backend/apigateway/adapters/edgar.py",
+        timing: "Polled every 900 seconds (CIK mapped)",
+        resilience: "Custom User-Agent with contact email, disk cache guard"
+      },
+      mistral: {
+        title: "⚡ Mistral AI Classification Service",
+        badge: "Primary LLM",
+        module: "Severity scoring (1-5), risk typing, topic & regulator extraction",
+        path: "backend/apigateway/adapters/llm.py",
+        timing: "Real-time invocation per unclassified item",
+        resilience: "Pinned open-mistral-7b, deterministic keyword fallback"
+      },
+      verifier: {
+        title: "👁️ Blind Second Opinion Verifier (Gemini / Groq)",
+        badge: "Blind Verifier",
+        module: "Strict isolated verification for items with Severity >= 3",
+        path: "backend/verify/verifier.py",
+        timing: "Invoked only when primary severity is 3, 4, or 5",
+        resilience: "Strict isolation (never sees primary output), deterministic rules"
+      },
+      resend: {
+        title: "✉️ Resend Transactional Alert Email Service",
+        badge: "Notification Gateway",
+        module: "HTML responsive risk escalation alert dispatch",
+        path: "backend/apigateway/adapters/resend.py",
+        timing: "Triggered on Rule A, B, or C breaches (6h cooldown)",
+        resilience: "EMAIL_MODE=dry_run writes to data/outbox/, zero network leakage"
+      },
+      gateway: {
+        title: "🔐 Unified API Gateway",
+        badge: "Gateway Layer",
+        module: "Encapsulates all external outbound calls with disk cache & logging",
+        path: "backend/apigateway/client.py",
+        timing: "Synchronous wrapper with configurable timeouts",
+        resilience: "Persistent disk cache in data/cache/, raw telemetry logs"
+      },
+      ingest: {
+        title: "⚙️ Multi-Source Ingestion Pipeline",
+        badge: "Ingest Coordinator",
+        module: "Normalizes raw feeds into standardized Pydantic Item schema",
+        path: "backend/ingest/pipeline.py",
+        timing: "Invoked periodically by background scheduler",
+        resilience: "Company capacity pruning (max 1,200 items per company)"
+      },
+      dedup: {
+        title: "🛡️ Content Hash Deduplication",
+        badge: "Data Integrity",
+        module: "Multi-key deduplication preventing duplicate database items",
+        path: "backend/ingest/dedup.py",
+        timing: "Inline execution during ingestion batch",
+        resilience: "Guarantee: 0 duplicates created on re-ingestion"
+      },
+      scheduler: {
+        title: "⏱️ Threaded Periodic Scheduler",
+        badge: "Background Job Runner",
+        module: "Coordinates polling schedules and hourly scoring recalculation",
+        path: "backend/jobs/scheduler.py",
+        timing: "60s (Finnhub) / 900s (CFPB, EDGAR) / 3600s (Scoring)",
+        resilience: "Thread-isolated with graceful error catching"
+      },
+      filter: {
+        title: "🔍 Zero-Cost Keyword Pre-Filter",
+        badge: "Pre-Classification Filter",
+        module: "Evaluates legal, compliance, and operational terms",
+        path: "backend/detect/filter.py",
+        timing: "Sub-millisecond regex evaluation",
+        resilience: "Fast-bypasses benign corporate noise, saves 60%+ LLM costs"
+      },
+      detect: {
+        title: "🧠 Risk Detection Engine",
+        badge: "Detection Orchestrator",
+        module: "Coordinates pre-filtering, Mistral strict prompt, and graph writes",
+        path: "backend/detect/engine.py",
+        timing: "Pipeline stage immediately following ingestion",
+        resilience: "Dual-write graph persistence with in-memory store"
+      },
+      consensus: {
+        title: "⚖️ Dual-LLM Consensus Engine",
+        badge: "Consensus Arbiter",
+        module: "Compares primary and verifier outputs to assign review factors",
+        path: "backend/verify/consensus.py",
+        timing: "Invoked for items with Severity >= 3",
+        resilience: "1.0x factor for agreement; 0.5x factor for divergence"
+      },
+      review_lane: {
+        title: "👥 Human Analyst Review Lane & Report Log",
+        badge: "Human-in-the-Loop",
+        module: "Displays divergent items for analyst verdict (Confirm / Dismiss)",
+        path: "frontend/src/components/ReviewQueueLane.tsx",
+        timing: "Asynchronous human intervention",
+        resilience: "Audited decisions log with complete historical retention"
+      },
+      scoring: {
+        title: "📐 Pure Python Mathematical Scoring Formula",
+        badge: "Corporate Risk Index",
+        module: "Calculates 0-100 index with 7-day half-life decay & Z-score surge",
+        path: "backend/scoring/index.py",
+        timing: "Recalculated upon new items, verdicts, and hourly jobs",
+        resilience: "Pure Python mathematical determinism, bounded strictly [0, 100]"
+      },
+      neo4j: {
+        title: "🌐 Neo4j Knowledge Graph & In-Memory Store",
+        badge: "Knowledge Graph",
+        module: "Stores Item, Company, Topic, Regulator nodes and relational edges",
+        path: "backend/db/graph_repo.py",
+        timing: "Cypher queries over Bolt 7687",
+        resilience: "Sub-5ms socket probe, automatic in-memory fallback on network drop"
+      },
+      explain: {
+        title: "🧭 Grounded Explanation Engine",
+        badge: "Audit & Reasoning",
+        module: "Traverses graph neighborhood for recurrence and peer contagion",
+        path: "backend/explain/engine.py",
+        timing: "On-demand upon company selection in dashboard",
+        resilience: "Anti-hallucination verification rejecting any unsourced citation"
+      },
+      alerts: {
+        title: "🚨 Automated Alerts Engine",
+        badge: "Escalation Engine",
+        module: "Evaluates Rule A (Index >= 60), Rule B (Surge >= 15), Rule C (Sev 5)",
+        path: "backend/alerts/engine.py",
+        timing: "Triggered whenever index updates",
+        resilience: "6-hour per-company cooldown, daily cap, HTML outbox previews"
+      },
+      fastapi: {
+        title: "⚡ FastAPI Application Server",
+        badge: "REST Backend",
+        module: "Strict contract endpoints conforming to OpenAPI specification",
+        path: "backend/api.py & backend/main.py",
+        timing: "Async event-driven Uvicorn server on port 8000",
+        resilience: "CORS enabled, auto-reload, graceful error serializations"
+      },
+      stream: {
+        title: "📡 Server-Sent Events (SSE) Stream",
+        badge: "Real-time Push",
+        module: "Live streaming push notifications to frontend with 10s heartbeat",
+        path: "backend/api.py (GET /stream)",
+        timing: "Persistent async connection",
+        resilience: "Client auto-reconnect with polling fallback"
+      },
+      react_ui: {
+        title: "💻 React 19 Glassmorphic Dashboard UI",
+        badge: "Frontend Client",
+        module: "Watchlist Scoreboard, Human Review Lane, Evidence Drawer, Simulator",
+        path: "frontend/src/App.tsx",
+        timing: "Single-page application on Vite 6 (port 3000)",
+        resilience: "Optimistic state updates, celestial cosmic background, full responsive"
+      }
+    };
+
+    function selectNode(nodeId) {
+      const meta = nodeMetadata[nodeId];
+      if (!meta) return;
+
+      document.querySelectorAll('.node-card').forEach(n => n.classList.remove('selected'));
+      event.currentTarget.classList.add('selected');
+
+      document.getElementById('inspectTitle').innerHTML = `<span>${meta.title.split(' ')[0]}</span> ${meta.title}`;
+      document.getElementById('inspectBadge').innerText = meta.badge;
+      document.getElementById('inspectModule').innerText = meta.module;
+      document.getElementById('inspectPath').innerText = meta.path;
+      document.getElementById('inspectTiming').innerText = meta.timing;
+      document.getElementById('inspectResilience').innerText = meta.resilience;
+
+      const inspector = document.getElementById('inspectorBox');
+      inspector.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function toggleTrace() {
+      traceActive = !traceActive;
+      const wrapper = document.getElementById('diagramWrapper');
+      const stateEl = document.getElementById('traceState');
+      const btn = document.getElementById('traceToggleBtn');
+      if (traceActive) {
+        wrapper.classList.add('trace-active');
+        stateEl.innerText = 'ON';
+        btn.classList.add('active');
+      } else {
+        wrapper.classList.remove('trace-active');
+        stateEl.innerText = 'OFF';
+        btn.classList.remove('active');
+      }
+    }
+
+    function filterLayer(layer) {
+      const allBoundaries = ['layer-feeds', 'layer-ingest', 'layer-ai', 'layer-graph', 'layer-client'];
+      if (layer === 'all') {
+        allBoundaries.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.style.opacity = '1';
+        });
+      } else if (layer === 'feeds') {
+        document.getElementById('layer-feeds').style.opacity = '1';
+        document.getElementById('layer-ingest').style.opacity = '1';
+        document.getElementById('layer-ai').style.opacity = '0.2';
+        document.getElementById('layer-graph').style.opacity = '0.2';
+        document.getElementById('layer-client').style.opacity = '0.2';
+      } else if (layer === 'ai') {
+        document.getElementById('layer-feeds').style.opacity = '0.2';
+        document.getElementById('layer-ingest').style.opacity = '0.2';
+        document.getElementById('layer-ai').style.opacity = '1';
+        document.getElementById('layer-graph').style.opacity = '0.2';
+        document.getElementById('layer-client').style.opacity = '0.2';
+      } else if (layer === 'graph') {
+        document.getElementById('layer-feeds').style.opacity = '0.2';
+        document.getElementById('layer-ingest').style.opacity = '0.2';
+        document.getElementById('layer-ai').style.opacity = '0.2';
+        document.getElementById('layer-graph').style.opacity = '1';
+        document.getElementById('layer-client').style.opacity = '1';
+      }
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      document.getElementById('themeIcon').innerText = next === 'dark' ? '☀️' : '🌙';
+    }
+  </script>
+</body>
+</html>

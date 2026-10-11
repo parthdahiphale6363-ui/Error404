@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from neo4j import GraphDatabase, Driver
 from backend.schemas import Item, ScorePoint, AlertRecord, ConsensusFlag
@@ -49,7 +50,7 @@ class GraphRepo:
 
 
     def _seed_in_memory_entities(self):
-        """Seed default 5 target companies and benchmark taxonomy into in-memory store."""
+        """Seed default 5 target companies, benchmark taxonomy, and labeled items into in-memory store."""
         initial_companies = [
             ("WFC", "Wells Fargo & Company"),
             ("EFX", "Equifax Inc."),
@@ -70,20 +71,125 @@ class GraphRepo:
         for topic in initial_topics:
             self._in_memory_topics[topic] = {"name": topic}
 
-        initial_regulators = ["CFPB", "SEC", "OCC", "DOJ", "FTC"]
+        initial_regulators = ["CFPB", "SEC", "OCC", "DOJ", "FTC", "State AG"]
         for reg in initial_regulators:
             self._in_memory_regulators[reg] = {"name": reg}
 
+        # Seed candidate & labeled items from data/labeled/labeled_items.jsonl
+        labeled_path = Path(__file__).resolve().parent.parent.parent / "data" / "labeled" / "labeled_items.jsonl"
+        if labeled_path.exists():
+            try:
+                with open(labeled_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        rec = json.loads(line)
+                        item_id = rec.get("id")
+                        if not item_id:
+                            continue
+                        company = rec.get("company", "WFC")
+                        rt_str = rec.get("user_labeled_risk_type") or "compliance"
+                        sev = int(rec.get("user_labeled_severity") or 3)
+                        topics = rec.get("true_topics") or []
+                        regulators = rec.get("true_regulators") or []
+
+                        item_dict = {
+                            "id": item_id,
+                            "company": company,
+                            "source": rec.get("source", "finnhub"),
+                            "source_url": rec.get("source_url", "https://example.com"),
+                            "date": rec.get("date", "2026-03-10T12:00:00Z"),
+                            "title": rec.get("title", ""),
+                            "text": rec.get("text", ""),
+                            "is_simulated": False,
+                            "severity": sev,
+                            "final_severity": sev,
+                            "risk_type": rt_str,
+                            "confidence": 0.92,
+                            "reason": rec.get("title", ""),
+                            "flagged": sev >= 3,
+                            "topics": topics,
+                            "regulators": regulators,
+                            "topics_json": json.dumps(topics),
+                            "regulators_json": json.dumps(regulators),
+                        }
+                        self._in_memory_items[item_id] = item_dict
+
+                        # Link Item -> Company
+                        self._in_memory_relationships.append({
+                            "source": item_id,
+                            "target": company,
+                            "type": "ABOUT",
+                        })
+
+                        # Link Item -> Topics
+                        for t in topics:
+                            self._in_memory_topics[t] = {"name": t}
+                            self._in_memory_relationships.append({
+                                "source": item_id,
+                                "target": t,
+                                "type": "HAS_TOPIC",
+                            })
+
+                        # Link Item -> Regulators
+                        for r in regulators:
+                            self._in_memory_regulators[r] = {"name": r}
+                            self._in_memory_relationships.append({
+                                "source": item_id,
+                                "target": r,
+                                "type": "INVOLVES",
+                            })
+            except Exception as e:
+                logger.warning(f"Failed to seed labeled items into in-memory store: {e}")
+
+    @staticmethod
+    def _probe_tcp(uri: str) -> bool:
+        """Fast non-blocking TCP socket check to prevent threadpool hangs on blocked networks."""
+        try:
+            import socket
+            clean = uri.split("://")[-1]
+            host = clean.split(":")[0].split("/")[0]
+            port = 7687
+            if ":" in clean:
+                parts = clean.split(":")
+                if len(parts) > 1 and parts[1].split("/")[0].isdigit():
+                    port = int(parts[1].split("/")[0])
+            with socket.create_connection((host, port), timeout=0.8):
+                return True
+        except Exception:
+            return False
+
+    def _mark_driver_failure(self, err: Optional[Exception] = None):
+        """Invalidate dead driver and enter cooldown."""
+        if self._driver:
+            try:
+                self._driver.close()
+            except Exception:
+                pass
+            self._driver = None
+        self._last_conn_failure = time.time()
+        if err:
+            logger.warning("Neo4j driver operation failed (%s). Operating in in-memory fallback.", err)
+
     def get_driver(self) -> Optional[Driver]:
         """Lazy-initialize and return the Neo4j driver if credentials exist."""
+        if os.getenv("MOCK_MODE", "0").lower() in ("1", "true") or os.getenv("DISABLE_NEO4J", "0").lower() in ("1", "true"):
+            return None
         if self._driver is not None:
             return self._driver
         now = time.time()
         # Cooldown failure retries to prevent blocking HTTP requests on unreachable hosts
-        if now - self._last_conn_failure < 30.0:
+        if now - self._last_conn_failure < 120.0:
             return None
         if self.uri and self.user and self.password:
             try:
+                # Fast TCP probe before heavy driver init to prevent threadpool hangs on blocked networks
+                if not self._probe_tcp(self.uri):
+                    self._last_conn_failure = now
+                    logger.info("Neo4j TCP port 7687 unreachable on current network. Operating with in-memory graph repository.")
+                    return None
+
                 self._driver = GraphDatabase.driver(
                     self.uri,
                     auth=(self.user, self.password),
@@ -92,12 +198,9 @@ class GraphRepo:
                 self._driver.verify_connectivity()
                 return self._driver
             except Exception as e:
-                logger.warning(f"Neo4j connection failed: {e}. Operating in fallback mode.")
-                self._driver = None
-                self._last_conn_failure = now
+                self._mark_driver_failure(e)
             return None
         return None
-
 
     def close(self):
         """Close Neo4j driver connection."""
@@ -107,15 +210,16 @@ class GraphRepo:
 
     def check_health(self) -> Dict[str, Any]:
         """Check Neo4j connectivity, node/relationship counts, and capacity warning."""
+        node_cnt = (
+            len(self._in_memory_companies)
+            + len(self._in_memory_items)
+            + len(self._in_memory_topics)
+            + len(self._in_memory_regulators)
+        )
+        rel_cnt = len(self._in_memory_relationships)
+
         driver = self.get_driver()
         if not driver:
-            node_cnt = (
-                len(self._in_memory_companies)
-                + len(self._in_memory_items)
-                + len(self._in_memory_topics)
-                + len(self._in_memory_regulators)
-            )
-            rel_cnt = len(self._in_memory_relationships)
             return {
                 "connected": False,
                 "node_count": node_cnt,
@@ -125,9 +229,8 @@ class GraphRepo:
                 "node_capacity_pct": round(node_cnt / MAX_NODES * 100, 2),
                 "rel_capacity_pct": round(rel_cnt / MAX_RELATIONSHIPS * 100, 2),
                 "capacity_warning": False,
-                "status": "offline_fallback",
+                "status": "in_memory_fallback",
             }
-
 
         try:
             with driver.session() as session:
@@ -153,17 +256,17 @@ class GraphRepo:
                     "status": "connected",
                 }
         except Exception as e:
-            logger.error(f"Error querying Neo4j health: {e}")
+            self._mark_driver_failure(e)
             return {
                 "connected": False,
-                "node_count": 0,
-                "relationship_count": 0,
+                "node_count": node_cnt,
+                "relationship_count": rel_cnt,
                 "max_nodes": MAX_NODES,
                 "max_relationships": MAX_RELATIONSHIPS,
-                "node_capacity_pct": 0.0,
-                "rel_capacity_pct": 0.0,
+                "node_capacity_pct": round(node_cnt / MAX_NODES * 100, 2),
+                "rel_capacity_pct": round(rel_cnt / MAX_RELATIONSHIPS * 100, 2),
                 "capacity_warning": False,
-                "status": f"error: {str(e)}",
+                "status": "in_memory_fallback",
             }
 
     def init_constraints(self) -> List[str]:
@@ -188,32 +291,38 @@ class GraphRepo:
         if not driver:
             return ["Fallback: constraints registered in memory"]
 
-        with driver.session() as session:
-            for q in queries:
-                session.run(q)
-                results.append(q)
-        return results
+        try:
+            with driver.session() as session:
+                for q in queries:
+                    session.run(q)
+                    results.append(q)
+            return results
+        except Exception as e:
+            self._mark_driver_failure(e)
+            return ["Fallback: constraints registered in memory"]
 
     def upsert_company(self, ticker: str, name: str):
         """Upsert Company node with ticker and name."""
+        self._in_memory_companies[ticker] = {"ticker": ticker, "name": name}
         driver = self.get_driver()
         if not driver:
-            self._in_memory_companies[ticker] = {"ticker": ticker, "name": name}
             return
         query = (
             "MERGE (c:Company {ticker: $ticker}) "
             "ON CREATE SET c.name = $name "
             "ON MATCH SET c.name = $name"
         )
-        with driver.session() as session:
-            session.run(query, ticker=ticker, name=name)
+        try:
+            with driver.session() as session:
+                session.run(query, ticker=ticker, name=name)
+        except Exception as e:
+            self._mark_driver_failure(e)
 
     def upsert_item(self, item: Item, topics: Optional[List[str]] = None, regulators: Optional[List[str]] = None):
         """Upsert Item node with relationships to Company, Topics, and Regulators."""
-        driver = self.get_driver()
-        if not driver:
-            self._in_memory_items[item.id] = item.model_dump()
-            # Link Item -> Company (ABOUT)
+        # Always update in-memory store
+        try:
+            self._in_memory_items[item.id] = item.model_dump() if hasattr(item, "model_dump") else dict(item)
             if item.company not in self._in_memory_companies:
                 self._in_memory_companies[item.company] = {"ticker": item.company, "name": item.company}
             self._in_memory_relationships.append({
@@ -237,8 +346,12 @@ class GraphRepo:
                         "target": r,
                         "type": "INVOLVES",
                     })
-            return
+        except Exception as e:
+            logger.warning("In-memory item upsert error: %s", e)
 
+        driver = self.get_driver()
+        if not driver:
+            return
 
         # Prepare parameters; store embedding or lists as primitive arrays or JSON strings
         params = {
@@ -276,8 +389,11 @@ class GraphRepo:
             "    MERGE (i)-[:INVOLVES]->(r) "
             ")"
         )
-        with driver.session() as session:
-            session.run(query, **params)
+        try:
+            with driver.session() as session:
+                session.run(query, **params)
+        except Exception as e:
+            self._mark_driver_failure(e)
 
     def upsert_detection(self, item: Item, detection: Any):
         """Persist detection properties (severity, risk_type, flagged, confidence) and topic/regulator edges."""
@@ -291,18 +407,19 @@ class GraphRepo:
         reason = getattr(detection, "reason", "")
         flagged = severity >= 3
 
+        if item.id in self._in_memory_items:
+            self._in_memory_items[item.id].update({
+                "severity": severity,
+                "risk_type": risk_type,
+                "confidence": confidence,
+                "reason": reason,
+                "flagged": flagged,
+                "topics": topics,
+                "regulators": regulators,
+            })
+
         driver = self.get_driver()
         if not driver:
-            if item.id in self._in_memory_items:
-                self._in_memory_items[item.id].update({
-                    "severity": severity,
-                    "risk_type": risk_type,
-                    "confidence": confidence,
-                    "reason": reason,
-                    "flagged": flagged,
-                    "topics": topics,
-                    "regulators": regulators,
-                })
             return
 
         query = (
@@ -315,18 +432,21 @@ class GraphRepo:
             "    i.topics_json = $topics_json, "
             "    i.regulators_json = $regulators_json"
         )
-        with driver.session() as session:
-            session.run(
-                query,
-                id=item.id,
-                severity=severity,
-                risk_type=risk_type,
-                confidence=confidence,
-                reason=reason,
-                flagged=flagged,
-                topics_json=json.dumps(topics),
-                regulators_json=json.dumps(regulators),
-            )
+        try:
+            with driver.session() as session:
+                session.run(
+                    query,
+                    id=item.id,
+                    severity=severity,
+                    risk_type=risk_type,
+                    confidence=confidence,
+                    reason=reason,
+                    flagged=flagged,
+                    topics_json=json.dumps(topics),
+                    regulators_json=json.dumps(regulators),
+                )
+        except Exception as e:
+            self._mark_driver_failure(e)
 
     def get_item(self, item_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve single item by ID."""
@@ -335,13 +455,16 @@ class GraphRepo:
             return self._in_memory_items.get(item_id)
 
         query = "MATCH (i:Item {id: $id}) RETURN i"
-        with driver.session() as session:
-            res = session.run(query, id=item_id)
-            record = res.single()
-            return dict(record["i"]) if record else None
+        try:
+            with driver.session() as session:
+                res = session.run(query, id=item_id)
+                record = res.single()
+                return dict(record["i"]) if record else None
+        except Exception as e:
+            self._mark_driver_failure(e)
+            return self._in_memory_items.get(item_id)
 
     def get_items_for_company(self, ticker: str, limit: int = 100) -> List[Dict[str, Any]]:
-
         """Retrieve items about a company."""
         driver = self.get_driver()
         if not driver:
@@ -354,34 +477,63 @@ class GraphRepo:
             "MATCH (i:Item)-[:ABOUT]->(c:Company {ticker: $ticker}) "
             "RETURN i ORDER BY i.date DESC LIMIT $limit"
         )
-        with driver.session() as session:
-            res = session.run(query, ticker=ticker, limit=limit)
-            return [dict(record["i"]) for record in res]
+        try:
+            with driver.session() as session:
+                res = session.run(query, ticker=ticker, limit=limit)
+                return [dict(record["i"]) for record in res]
+        except Exception as e:
+            self._mark_driver_failure(e)
+            return [
+                v for v in self._in_memory_items.values()
+                if v.get("company") == ticker
+            ][:limit]
 
     def upsert_consensus(self, flag: ConsensusFlag):
         """Persist consensus flag attributes to Item node."""
-        driver = self.get_driver()
         status_val = getattr(flag.status, "value", str(flag.status))
         risk_type_val = getattr(flag.risk_type, "value", str(flag.risk_type))
         verdict_val = getattr(flag.analyst_verdict, "value", str(flag.analyst_verdict)) if flag.analyst_verdict else None
         verifier_rt_val = getattr(flag.verifier_risk_type, "value", str(flag.verifier_risk_type)) if flag.verifier_risk_type else None
 
+        # Always update in-memory state for seamless fallback
+        if flag.item_id in self._in_memory_items:
+            self._in_memory_items[flag.item_id].update({
+                "status": status_val,
+                "primary_severity": flag.primary_severity,
+                "final_severity": flag.final_severity,
+                "severity": flag.final_severity,
+                "risk_type": risk_type_val,
+                "review_factor": flag.review_factor,
+                "verifier_provider": flag.verifier_provider,
+                "verifier_severity": flag.verifier_severity,
+                "verifier_risk_type": verifier_rt_val,
+                "analyst_verdict": verdict_val,
+                "confidence": flag.confidence,
+                "reason": flag.reason,
+            })
+        else:
+            self._in_memory_items[flag.item_id] = {
+                "id": flag.item_id,
+                "company": flag.company,
+                "status": status_val,
+                "primary_severity": flag.primary_severity,
+                "final_severity": flag.final_severity,
+                "severity": flag.final_severity,
+                "risk_type": risk_type_val,
+                "review_factor": flag.review_factor,
+                "verifier_provider": flag.verifier_provider,
+                "verifier_severity": flag.verifier_severity,
+                "verifier_risk_type": verifier_rt_val,
+                "analyst_verdict": verdict_val,
+                "confidence": flag.confidence,
+                "reason": flag.reason,
+                "topics": flag.topics,
+                "regulators": flag.regulators,
+                "is_simulated": flag.is_simulated,
+            }
+
+        driver = self.get_driver()
         if not driver:
-            if flag.item_id in self._in_memory_items:
-                self._in_memory_items[flag.item_id].update({
-                    "status": status_val,
-                    "primary_severity": flag.primary_severity,
-                    "final_severity": flag.final_severity,
-                    "severity": flag.final_severity,
-                    "risk_type": risk_type_val,
-                    "review_factor": flag.review_factor,
-                    "verifier_provider": flag.verifier_provider,
-                    "verifier_severity": flag.verifier_severity,
-                    "verifier_risk_type": verifier_rt_val,
-                    "analyst_verdict": verdict_val,
-                    "confidence": flag.confidence,
-                    "reason": flag.reason,
-                })
             return
 
         query = (
@@ -399,40 +551,49 @@ class GraphRepo:
             "    i.confidence = $confidence, "
             "    i.reason = $reason"
         )
-        with driver.session() as session:
-            session.run(
-                query,
-                id=flag.item_id,
-                status=status_val,
-                primary_severity=flag.primary_severity,
-                final_severity=flag.final_severity,
-                risk_type=risk_type_val,
-                review_factor=flag.review_factor,
-                verifier_provider=flag.verifier_provider,
-                verifier_severity=flag.verifier_severity,
-                verifier_risk_type=verifier_rt_val,
-                analyst_verdict=verdict_val,
-                confidence=flag.confidence,
-                reason=flag.reason,
-            )
+        try:
+            with driver.session() as session:
+                session.run(
+                    query,
+                    id=flag.item_id,
+                    status=status_val,
+                    primary_severity=flag.primary_severity,
+                    final_severity=flag.final_severity,
+                    risk_type=risk_type_val,
+                    review_factor=flag.review_factor,
+                    verifier_provider=flag.verifier_provider,
+                    verifier_severity=flag.verifier_severity,
+                    verifier_risk_type=verifier_rt_val,
+                    analyst_verdict=verdict_val,
+                    confidence=flag.confidence,
+                    reason=flag.reason,
+                )
+        except Exception as e:
+            self._mark_driver_failure(e)
 
     def get_review_queue(self) -> List[Dict[str, Any]]:
         """Retrieve items with status 'needs_review'."""
+        in_mem_queue = [
+            v for v in self._in_memory_items.values()
+            if v.get("status") == "needs_review"
+        ]
+
         driver = self.get_driver()
         if not driver:
-            return [
-                v for v in self._in_memory_items.values()
-                if v.get("status") == "needs_review"
-            ]
+            return in_mem_queue
 
         query = (
             "MATCH (i:Item) "
             "WHERE i.status = 'needs_review' "
             "RETURN i ORDER BY i.date DESC"
         )
-        with driver.session() as session:
-            res = session.run(query)
-            return [dict(record["i"]) for record in res]
+        try:
+            with driver.session() as session:
+                res = session.run(query)
+                return [dict(record["i"]) for record in res]
+        except Exception as e:
+            self._mark_driver_failure(e)
+            return in_mem_queue
 
     def update_verdict(self, item_id: str, verdict: Any) -> Optional[Dict[str, Any]]:
         """Update analyst verdict for an item in review queue."""
@@ -440,17 +601,18 @@ class GraphRepo:
         new_status = "confirmed" if verdict_str == "confirm" else "dismissed"
         new_rf = 1.0 if verdict_str == "confirm" else 0.0
 
+        # Always update in-memory
+        if item_id in self._in_memory_items:
+            item = self._in_memory_items[item_id]
+            item.update({
+                "status": new_status,
+                "analyst_verdict": verdict_str,
+                "review_factor": new_rf,
+            })
+
         driver = self.get_driver()
         if not driver:
-            if item_id in self._in_memory_items:
-                item = self._in_memory_items[item_id]
-                item.update({
-                    "status": new_status,
-                    "analyst_verdict": verdict_str,
-                    "review_factor": new_rf,
-                })
-                return item
-            return None
+            return self._in_memory_items.get(item_id)
 
         query = (
             "MATCH (i:Item {id: $id}) "
@@ -459,10 +621,14 @@ class GraphRepo:
             "    i.review_factor = $review_factor "
             "RETURN i"
         )
-        with driver.session() as session:
-            res = session.run(query, id=item_id, status=new_status, verdict=verdict_str, review_factor=new_rf)
-            rec = res.single()
-            return dict(rec["i"]) if rec else None
+        try:
+            with driver.session() as session:
+                res = session.run(query, id=item_id, status=new_status, verdict=verdict_str, review_factor=new_rf)
+                rec = res.single()
+                return dict(rec["i"]) if rec else self._in_memory_items.get(item_id)
+        except Exception as e:
+            self._mark_driver_failure(e)
+            return self._in_memory_items.get(item_id)
 
     def record_score_point(self, ticker: str, score_point: ScorePoint):
         """Append hourly ScorePoint node to Company."""
@@ -475,14 +641,24 @@ class GraphRepo:
             "CREATE (s:ScorePoint {ts: $ts, index: $index, top_items_json: $top_items_json}) "
             "CREATE (c)-[:HAS_SCORE]->(s)"
         )
-        with driver.session() as session:
-            session.run(
-                query,
-                ticker=ticker,
-                ts=score_point.ts,
-                index=score_point.index,
-                top_items_json=score_point.top_items_json,
-            )
+        ts_val = getattr(score_point, "ts", None)
+        if ts_val is None:
+            as_of_val = getattr(score_point, "as_of", None)
+            ts_val = as_of_val.isoformat() if hasattr(as_of_val, "isoformat") else str(as_of_val)
+        index_val = getattr(score_point, "index_score", getattr(score_point, "index", 0.0))
+        top_json = getattr(score_point, "top_items_json", "[]")
+
+        try:
+            with driver.session() as session:
+                session.run(
+                    query,
+                    ticker=ticker,
+                    ts=ts_val,
+                    index=index_val,
+                    top_items_json=top_json,
+                )
+        except Exception as e:
+            self._mark_driver_failure(e)
 
     def prune_company_capacity(self, ticker: str):
         """Prune oldest unflagged, unlabeled items when count exceeds capacity budget."""
@@ -501,39 +677,44 @@ class GraphRepo:
             "UNWIND to_delete AS d "
             "DETACH DELETE d"
         )
-        with driver.session() as session:
-            session.run(query, ticker=ticker, max_items=MAX_ITEMS_PER_COMPANY)
+        try:
+            with driver.session() as session:
+                session.run(query, ticker=ticker, max_items=MAX_ITEMS_PER_COMPANY)
+        except Exception as e:
+            self._mark_driver_failure(e)
 
     def reset_simulated_items(self) -> int:
         """Remove all simulated items (`is_simulated=true`) and associated relationships."""
+        sim_ids = {
+            k for k, v in self._in_memory_items.items()
+            if v.get("is_simulated", False)
+        }
+        initial = len(self._in_memory_items)
+        self._in_memory_items = {
+            k: v for k, v in self._in_memory_items.items()
+            if not v.get("is_simulated", False)
+        }
+        self._in_memory_relationships = [
+            r for r in self._in_memory_relationships
+            if r.get("source") not in sim_ids and r.get("target") not in sim_ids
+        ]
+        in_memory_removed = initial - len(self._in_memory_items)
+
         driver = self.get_driver()
         if not driver:
-            sim_ids = {
-                k for k, v in self._in_memory_items.items()
-                if v.get("is_simulated", False)
-            }
-            initial = len(self._in_memory_items)
-            self._in_memory_items = {
-                k: v for k, v in self._in_memory_items.items()
-                if not v.get("is_simulated", False)
-            }
-            self._in_memory_relationships = [
-                r for r in self._in_memory_relationships
-                if r.get("source") not in sim_ids and r.get("target") not in sim_ids
-            ]
-            return initial - len(self._in_memory_items)
-
+            return in_memory_removed
 
         query = (
             "MATCH (i:Item {is_simulated: true}) "
-            "WITH i, count(i) AS cnt "
-            "DETACH DELETE i "
-            "RETURN cnt"
+            "DETACH DELETE i"
         )
-        with driver.session() as session:
-            res = session.run(query)
-            record = res.single()
-            return record["cnt"] if record else 0
+        try:
+            with driver.session() as session:
+                session.run(query)
+            return in_memory_removed
+        except Exception as e:
+            self._mark_driver_failure(e)
+            return in_memory_removed
 
     def get_evidence_for_company(self, ticker: str, limit: int = 15) -> Dict[str, Any]:
         """Retrieve graph evidence for a company: items, recurrence, contagion, paths, nodes, edges."""
@@ -656,6 +837,66 @@ class GraphRepo:
                         nodes.append({"id": r_id, "label": "Regulator", "properties": {"name": r}})
                     edges.append({"source": i_id, "target": r_id, "type": "INVOLVES", "properties": {}})
 
+            # Include multi-hop recurrence into topology nodes & edges
+            for rec in recurrence[:8]:
+                rel_id = rec["related_item_id"]
+                topic = rec["topic"]
+                t_id = f"topic_{topic.replace(' ', '_')}"
+                if rel_id not in seen_nodes:
+                    seen_nodes.add(rel_id)
+                    r_item = self._in_memory_items.get(rel_id, {})
+                    nodes.append({
+                        "id": rel_id,
+                        "label": "Item",
+                        "properties": {
+                            "title": r_item.get("title", ""),
+                            "severity": r_item.get("severity", r_item.get("final_severity", 3)),
+                            "risk_type": r_item.get("risk_type", "compliance"),
+                            "is_recurrence": True,
+                        },
+                    })
+                    edges.append({"source": rel_id, "target": f"comp_{ticker}", "type": "ABOUT", "properties": {"is_recurrence": True}})
+                if t_id in seen_nodes:
+                    edges.append({"source": rel_id, "target": t_id, "type": "HAS_TOPIC", "properties": {"is_recurrence": True}})
+
+            # Include cross-company contagion paths into topology nodes & edges
+            for con in contagion[:6]:
+                c_other_comp = con["other_company"]
+                c_rel_id = con["related_item_id"]
+                c_topic = con["topic"]
+                c_item = self._in_memory_items.get(c_rel_id, {})
+                t_id = f"topic_{c_topic.replace(' ', '_')}"
+
+                peer_comp_id = f"comp_{c_other_comp}"
+                if peer_comp_id not in seen_nodes:
+                    seen_nodes.add(peer_comp_id)
+                    nodes.append({
+                        "id": peer_comp_id,
+                        "label": "Company",
+                        "properties": {
+                            "ticker": c_other_comp,
+                            "name": self._in_memory_companies.get(c_other_comp, {}).get("name", c_other_comp),
+                            "is_peer": True,
+                        },
+                    })
+
+                if c_rel_id not in seen_nodes:
+                    seen_nodes.add(c_rel_id)
+                    nodes.append({
+                        "id": c_rel_id,
+                        "label": "Item",
+                        "properties": {
+                            "title": c_item.get("title", ""),
+                            "severity": c_item.get("severity", c_item.get("final_severity", 3)),
+                            "risk_type": c_item.get("risk_type", "compliance"),
+                            "company": c_other_comp,
+                            "is_contagion": True,
+                        },
+                    })
+                edges.append({"source": c_rel_id, "target": peer_comp_id, "type": "ABOUT", "properties": {"is_contagion": True}})
+                if t_id in seen_nodes:
+                    edges.append({"source": c_rel_id, "target": t_id, "type": "HAS_TOPIC", "properties": {"is_contagion": True}})
+
             return {
                 "items": comp_items,
                 "recurrence": recurrence,
@@ -688,74 +929,102 @@ class GraphRepo:
             "LIMIT 25"
         )
 
-        with driver.session() as session:
-            res_items = session.run(query_items, ticker=ticker, limit=limit)
-            comp_items = []
-            nodes = [{"id": f"comp_{ticker}", "label": "Company", "properties": {"ticker": ticker}}]
-            edges = []
-            seen_nodes = {f"comp_{ticker}"}
-            paths = []
+        try:
+            with driver.session() as session:
+                res_items = session.run(query_items, ticker=ticker, limit=limit)
+                comp_items = []
+                nodes = [{"id": f"comp_{ticker}", "label": "Company", "properties": {"ticker": ticker}}]
+                edges = []
+                seen_nodes = {f"comp_{ticker}"}
+                paths = []
 
-            for rec in res_items:
-                item_dict = dict(rec["i"])
-                topics = rec["topics"]
-                regulators = rec["regulators"]
-                item_dict["topics"] = topics
-                item_dict["regulators"] = regulators
-                comp_items.append(item_dict)
+                for rec in res_items:
+                    item_dict = dict(rec["i"])
+                    topics = rec["topics"]
+                    regulators = rec["regulators"]
+                    item_dict["topics"] = topics
+                    item_dict["regulators"] = regulators
+                    comp_items.append(item_dict)
 
-                i_id = item_dict.get("id")
-                if i_id and i_id not in seen_nodes:
-                    seen_nodes.add(i_id)
-                    nodes.append({
-                        "id": i_id,
-                        "label": "Item",
-                        "properties": {
-                            "title": item_dict.get("title", ""),
-                            "severity": item_dict.get("severity", item_dict.get("final_severity", 3)),
-                            "risk_type": item_dict.get("risk_type", "compliance"),
-                        },
-                    })
-                    edges.append({"source": i_id, "target": f"comp_{ticker}", "type": "ABOUT", "properties": {}})
+                    i_id = item_dict.get("id")
+                    if i_id and i_id not in seen_nodes:
+                        seen_nodes.add(i_id)
+                        nodes.append({
+                            "id": i_id,
+                            "label": "Item",
+                            "properties": {
+                                "title": item_dict.get("title", ""),
+                                "severity": item_dict.get("severity", item_dict.get("final_severity", 3)),
+                                "risk_type": item_dict.get("risk_type", "compliance"),
+                            },
+                        })
+                        edges.append({"source": i_id, "target": f"comp_{ticker}", "type": "ABOUT", "properties": {}})
 
-                for t in topics:
-                    t_id = f"topic_{t.replace(' ', '_')}"
-                    if t_id not in seen_nodes:
-                        seen_nodes.add(t_id)
-                        nodes.append({"id": t_id, "label": "Topic", "properties": {"name": t}})
-                    edges.append({"source": i_id, "target": t_id, "type": "HAS_TOPIC", "properties": {}})
+                    for t in topics:
+                        t_id = f"topic_{t.replace(' ', '_')}"
+                        if t_id not in seen_nodes:
+                            seen_nodes.add(t_id)
+                            nodes.append({"id": t_id, "label": "Topic", "properties": {"name": t}})
+                        edges.append({"source": i_id, "target": t_id, "type": "HAS_TOPIC", "properties": {}})
 
-                for r in regulators:
-                    r_id = f"reg_{r.replace(' ', '_')}"
-                    if r_id not in seen_nodes:
-                        seen_nodes.add(r_id)
-                        nodes.append({"id": r_id, "label": "Regulator", "properties": {"name": r}})
-                    edges.append({"source": i_id, "target": r_id, "type": "INVOLVES", "properties": {}})
+                    for r in regulators:
+                        r_id = f"reg_{r.replace(' ', '_')}"
+                        if r_id not in seen_nodes:
+                            seen_nodes.add(r_id)
+                            nodes.append({"id": r_id, "label": "Regulator", "properties": {"name": r}})
+                        edges.append({"source": i_id, "target": r_id, "type": "INVOLVES", "properties": {}})
 
-            res_rec = session.run(query_recurrence, ticker=ticker)
-            recurrence = []
-            for rec in res_rec:
-                recurrence.append({"item_id": rec["id1"], "topic": rec["topic"], "related_item_id": rec["id2"]})
-                path_str = f"(Item:{rec['id1']})-[:HAS_TOPIC]->(Topic:{rec['topic']})<-[:HAS_TOPIC]-(Item:{rec['id2']})"
-                if path_str not in paths:
-                    paths.append(path_str)
+                res_rec = session.run(query_recurrence, ticker=ticker)
+                recurrence = []
+                for rec in res_rec:
+                    recurrence.append({"item_id": rec["id1"], "topic": rec["topic"], "related_item_id": rec["id2"]})
+                    path_str = f"(Item:{rec['id1']})-[:HAS_TOPIC]->(Topic:{rec['topic']})<-[:HAS_TOPIC]-(Item:{rec['id2']})"
+                    if path_str not in paths:
+                        paths.append(path_str)
 
-            res_con = session.run(query_contagion, ticker=ticker)
-            contagion = []
-            for rec in res_con:
-                contagion.append({"item_id": rec["id1"], "topic": rec["topic"], "related_item_id": rec["id2"], "other_company": rec["other_ticker"]})
-                path_str = f"(Item:{rec['id1']})-[:HAS_TOPIC]->(Topic:{rec['topic']})<-[:HAS_TOPIC]-(Item:{rec['id2']})-[:ABOUT]->(Company:{rec['other_ticker']})"
-                if path_str not in paths:
-                    paths.append(path_str)
+                res_con = session.run(query_contagion, ticker=ticker)
+                contagion = []
+                for rec in res_con:
+                    contagion.append({"item_id": rec["id1"], "topic": rec["topic"], "related_item_id": rec["id2"], "other_company": rec["other_ticker"]})
+                    path_str = f"(Item:{rec['id1']})-[:HAS_TOPIC]->(Topic:{rec['topic']})<-[:HAS_TOPIC]-(Item:{rec['id2']})-[:ABOUT]->(Company:{rec['other_ticker']})"
+                    if path_str not in paths:
+                        paths.append(path_str)
 
-            return {
-                "items": comp_items,
-                "recurrence": recurrence,
-                "contagion": contagion,
-                "paths": paths,
-                "nodes": nodes,
-                "edges": edges,
-            }
+                    # Add peer company & contagion items/edges to graph
+                    peer_ticker = rec["other_ticker"]
+                    peer_comp_id = f"comp_{peer_ticker}"
+                    if peer_comp_id not in seen_nodes:
+                        seen_nodes.add(peer_comp_id)
+                        nodes.append({
+                            "id": peer_comp_id,
+                            "label": "Company",
+                            "properties": {"ticker": peer_ticker, "is_peer": True},
+                        })
+
+                    con_item_id = rec["id2"]
+                    if con_item_id not in seen_nodes:
+                        seen_nodes.add(con_item_id)
+                        nodes.append({
+                            "id": con_item_id,
+                            "label": "Item",
+                            "properties": {"company": peer_ticker, "is_contagion": True},
+                        })
+                    edges.append({"source": con_item_id, "target": peer_comp_id, "type": "ABOUT", "properties": {"is_contagion": True}})
+                    t_id = f"topic_{rec['topic'].replace(' ', '_')}"
+                    if t_id in seen_nodes:
+                        edges.append({"source": con_item_id, "target": t_id, "type": "HAS_TOPIC", "properties": {"is_contagion": True}})
+
+                return {
+                    "items": comp_items,
+                    "recurrence": recurrence,
+                    "contagion": contagion,
+                    "paths": paths,
+                    "nodes": nodes,
+                    "edges": edges,
+                }
+        except Exception as e:
+            self._mark_driver_failure(e)
+            return self.get_evidence_for_company(ticker, limit)
 
 
 # Default singleton instance

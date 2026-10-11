@@ -1,0 +1,306 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tt-a1i/archify/main/archify/schemas/architecture.schema.json",
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Corporate Risk Radar — Complete System Architecture, API Integrations & Pipeline Workflow",
+    "output": ".archify/architecture-corporate-risk-radar-20261011-171532/corporate-risk-radar.html",
+    "viewBox": [1440, 920],
+    "quality_profile": "showcase",
+    "generator": "archify-v3.0",
+    "description": "End-to-end architecture showing multi-source external feeds, API gateway, dual-LLM consensus, pure Python mathematical scoring, Neo4j knowledge graph topology, FastAPI service routes, and React glassmorphism dashboard UI."
+  },
+  "boundaries": [
+    {
+      "id": "b_external",
+      "label": "External Data Feeds & LLM Providers",
+      "kind": "external",
+      "color": "sky",
+      "x": 30,
+      "y": 60,
+      "width": 240,
+      "height": 790
+    },
+    {
+      "id": "b_gateway",
+      "label": "API Gateway & Ingestion Pipeline",
+      "kind": "service",
+      "color": "indigo",
+      "x": 310,
+      "y": 60,
+      "width": 260,
+      "height": 790
+    },
+    {
+      "id": "b_intelligence",
+      "label": "Dual-LLM Detection & Consensus Engine",
+      "kind": "compute",
+      "color": "purple",
+      "x": 610,
+      "y": 60,
+      "width": 260,
+      "height": 790
+    },
+    {
+      "id": "b_graph_scoring",
+      "label": "Scoring, Knowledge Graph & Multi-Hop Explainer",
+      "kind": "database",
+      "color": "emerald",
+      "x": 910,
+      "y": 60,
+      "width": 260,
+      "height": 790
+    },
+    {
+      "id": "b_application",
+      "label": "FastAPI Server & React Glassmorphic UI",
+      "kind": "application",
+      "color": "amber",
+      "x": 1210,
+      "y": 60,
+      "width": 200,
+      "height": 790
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n_finnhub",
+      "boundary": "b_external",
+      "label": "Finnhub News API",
+      "sublabel": "Financial Headlines (60s)",
+      "type": "feed",
+      "icon": "newspaper",
+      "x": 60,
+      "y": 120
+    },
+    {
+      "id": "n_cfpb",
+      "boundary": "b_external",
+      "label": "CFPB Complaints API",
+      "sublabel": "Consumer Narratives (900s)",
+      "type": "feed",
+      "icon": "shield-alert",
+      "x": 60,
+      "y": 230
+    },
+    {
+      "id": "n_edgar",
+      "boundary": "b_external",
+      "label": "SEC EDGAR API",
+      "sublabel": "8-K / 10-K Filings (900s)",
+      "type": "feed",
+      "icon": "file-text",
+      "x": 60,
+      "y": 340
+    },
+    {
+      "id": "n_mistral_api",
+      "boundary": "b_external",
+      "label": "Mistral AI API",
+      "sublabel": "open-mistral-7b (JSON)",
+      "type": "ai",
+      "icon": "cpu",
+      "x": 60,
+      "y": 480
+    },
+    {
+      "id": "n_verifier_api",
+      "boundary": "b_external",
+      "label": "Gemini / Groq API",
+      "sublabel": "Blind Verifier (2nd Opinion)",
+      "type": "ai",
+      "icon": "eye",
+      "x": 60,
+      "y": 600
+    },
+    {
+      "id": "n_resend_api",
+      "boundary": "b_external",
+      "label": "Resend Email API",
+      "sublabel": "Dry-run / Live SMTP",
+      "type": "mail",
+      "icon": "mail",
+      "x": 60,
+      "y": 720
+    },
+    {
+      "id": "n_apigateway",
+      "boundary": "b_gateway",
+      "label": "API Gateway Client",
+      "sublabel": "Rate Limits, Disk Cache & Raw Logs",
+      "type": "gateway",
+      "icon": "lock",
+      "x": 340,
+      "y": 170
+    },
+    {
+      "id": "n_ingest",
+      "boundary": "b_gateway",
+      "label": "Ingestion Coordinator",
+      "sublabel": "Schema Normalization & Capacity Check",
+      "type": "pipeline",
+      "icon": "git-merge",
+      "x": 340,
+      "y": 340
+    },
+    {
+      "id": "n_dedup",
+      "boundary": "b_gateway",
+      "label": "Hash Deduplication",
+      "sublabel": "SHA256 Content & ID Filter",
+      "type": "filter",
+      "icon": "check-circle",
+      "x": 340,
+      "y": 510
+    },
+    {
+      "id": "n_scheduler",
+      "boundary": "b_gateway",
+      "label": "Background Scheduler",
+      "sublabel": "Threaded Ingest & Scoring Jobs",
+      "type": "cron",
+      "icon": "clock",
+      "x": 340,
+      "y": 670
+    },
+    {
+      "id": "n_filter",
+      "boundary": "b_intelligence",
+      "label": "Keyword Pre-Filter",
+      "sublabel": "Noise Bypass & Domain Heuristics",
+      "type": "filter",
+      "icon": "filter",
+      "x": 640,
+      "y": 170
+    },
+    {
+      "id": "n_detect_engine",
+      "boundary": "b_intelligence",
+      "label": "Detection Engine",
+      "sublabel": "Mistral Classifier (Severity 1-5)",
+      "type": "ai-engine",
+      "icon": "activity",
+      "x": 640,
+      "y": 340
+    },
+    {
+      "id": "n_consensus",
+      "boundary": "b_intelligence",
+      "label": "Consensus Engine",
+      "sublabel": "Blind Second Opinion & Divergence Gate",
+      "type": "consensus",
+      "icon": "git-pull-request",
+      "x": 640,
+      "y": 510
+    },
+    {
+      "id": "n_review_queue",
+      "boundary": "b_intelligence",
+      "label": "Review Queue State",
+      "sublabel": "Needs Review (0.5x) vs Confirmed (1.0x)",
+      "type": "state",
+      "icon": "users",
+      "x": 640,
+      "y": 670
+    },
+    {
+      "id": "n_scoring",
+      "boundary": "b_graph_scoring",
+      "label": "Mathematical Scoring",
+      "sublabel": "Decay (7d), Stacking, Z-Score Spike",
+      "type": "math",
+      "icon": "trending-up",
+      "x": 940,
+      "y": 170
+    },
+    {
+      "id": "n_neo4j",
+      "boundary": "b_graph_scoring",
+      "label": "Neo4j AuraDB & In-Memory",
+      "sublabel": "Company, Item, Topic, Regulator Edges",
+      "type": "graph-db",
+      "icon": "share-2",
+      "x": 940,
+      "y": 340
+    },
+    {
+      "id": "n_explain",
+      "boundary": "b_graph_scoring",
+      "label": "Explain Engine",
+      "sublabel": "Multi-Hop Traversal & Zero-Hallucination",
+      "type": "reasoning",
+      "icon": "compass",
+      "x": 940,
+      "y": 510
+    },
+    {
+      "id": "n_alerts_engine",
+      "boundary": "b_graph_scoring",
+      "label": "Alerts Engine",
+      "sublabel": "Rule A (60+), Rule B (Surge), Rule C (Sev 5)",
+      "type": "notification",
+      "icon": "bell",
+      "x": 940,
+      "y": 670
+    },
+    {
+      "id": "n_fastapi",
+      "boundary": "b_application",
+      "label": "FastAPI REST API",
+      "sublabel": "Endpoints (/companies, /review-queue, etc.)",
+      "type": "api",
+      "icon": "server",
+      "x": 1230,
+      "y": 220
+    },
+    {
+      "id": "n_sse_stream",
+      "boundary": "b_application",
+      "label": "SSE Live Stream",
+      "sublabel": "GET /stream (10s Polling Heartbeat)",
+      "type": "stream",
+      "icon": "radio",
+      "x": 1230,
+      "y": 380
+    },
+    {
+      "id": "n_react_ui",
+      "boundary": "b_application",
+      "label": "React Dashboard UI",
+      "sublabel": "Scoreboard, Review Lane & Evidence Drawer",
+      "type": "ui",
+      "icon": "layout",
+      "x": 1230,
+      "y": 560
+    }
+  ],
+  "relationships": [
+    { "from": "n_finnhub", "to": "n_apigateway", "label": "HTTP Poll (60s)" },
+    { "from": "n_cfpb", "to": "n_apigateway", "label": "HTTP Poll (900s)" },
+    { "from": "n_edgar", "to": "n_apigateway", "label": "HTTP Poll (900s)" },
+    { "from": "n_apigateway", "to": "n_ingest", "label": "Normalized Items" },
+    { "from": "n_scheduler", "to": "n_ingest", "label": "Triggers Ingest" },
+    { "from": "n_ingest", "to": "n_dedup", "label": "Check Hashes" },
+    { "from": "n_dedup", "to": "n_filter", "label": "Pass Unique Items" },
+    { "from": "n_filter", "to": "n_detect_engine", "label": "Risk Candidates" },
+    { "from": "n_detect_engine", "to": "n_mistral_api", "label": "Classification Prompt" },
+    { "from": "n_mistral_api", "to": "n_detect_engine", "label": "Strict JSON Output" },
+    { "from": "n_detect_engine", "to": "n_consensus", "label": "Flagged (Sev >= 3)" },
+    { "from": "n_consensus", "to": "n_verifier_api", "label": "Blind Second Opinion" },
+    { "from": "n_verifier_api", "to": "n_consensus", "label": "Verifier Severity" },
+    { "from": "n_consensus", "to": "n_review_queue", "label": "Divergence Queue" },
+    { "from": "n_consensus", "to": "n_scoring", "label": "Items with Review Factors" },
+    { "from": "n_scheduler", "to": "n_scoring", "label": "Hourly Recalculation" },
+    { "from": "n_scoring", "to": "n_neo4j", "label": "ScorePoint & Graph Edges" },
+    { "from": "n_neo4j", "to": "n_explain", "label": "Recurrence & Contagion Paths" },
+    { "from": "n_scoring", "to": "n_alerts_engine", "label": "Index & Surge Signals" },
+    { "from": "n_alerts_engine", "to": "n_resend_api", "label": "Dispatch Alerts" },
+    { "from": "n_neo4j", "to": "n_fastapi", "label": "Topology & Companies" },
+    { "from": "n_explain", "to": "n_fastapi", "label": "Grounded Explanations" },
+    { "from": "n_review_queue", "to": "n_fastapi", "label": "Queue & Analyst Log" },
+    { "from": "n_fastapi", "to": "n_sse_stream", "label": "Event Generator" },
+    { "from": "n_fastapi", "to": "n_react_ui", "label": "REST Endpoints" },
+    { "from": "n_sse_stream", "to": "n_react_ui", "label": "Live Stream Push" },
+    { "from": "n_react_ui", "to": "n_review_queue", "label": "POST /items/{id}/verdict" }
+  ]
+}

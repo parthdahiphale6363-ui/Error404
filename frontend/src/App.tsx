@@ -4,11 +4,14 @@ import { EvidenceDrawer } from './components/EvidenceDrawer';
 import { ReviewQueueLane } from './components/ReviewQueueLane';
 import { AlertsPanel } from './components/AlertsPanel';
 import { SimulateControl } from './components/SimulateControl';
+import { CelestialBackground } from './components/CelestialBackground';
+import './App.css';
 
 export function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [companies, setCompanies] = useState<CompanySummary[]>([]);
   const [reviewQueue, setReviewQueue] = useState<ConsensusFlag[]>([]);
+  const [analystReportLog, setAnalystReportLog] = useState<ConsensusFlag[]>([]);
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<CompanySummary | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -19,10 +22,11 @@ export function App() {
 
   const refreshData = useCallback(async () => {
     try {
-      const [healthRes, compRes, queueRes, alertsRes] = await Promise.all([
+      const [healthRes, compRes, queueRes, logRes, alertsRes] = await Promise.all([
         fetch('/api/health').catch(() => null),
         fetch('/api/companies').catch(() => null),
         fetch('/api/review-queue').catch(() => null),
+        fetch('/api/review-log').catch(() => null),
         fetch('/api/alerts').catch(() => null),
       ]);
 
@@ -38,6 +42,11 @@ export function App() {
       if (queueRes && queueRes.ok) {
         const queueData: ConsensusFlag[] = await queueRes.json();
         setReviewQueue(queueData);
+      }
+
+      if (logRes && logRes.ok) {
+        const logData: ConsensusFlag[] = await logRes.json();
+        setAnalystReportLog(logData);
       }
 
       if (alertsRes && alertsRes.ok) {
@@ -83,14 +92,29 @@ export function App() {
 
   const handleVerdict = async (itemId: string, verdict: 'confirm' | 'dismiss') => {
     try {
-      // Optimistic UI update
+      const target = reviewQueue.find((i) => i.item_id === itemId);
+      // Optimistic UI updates
       setReviewQueue((prev) => prev.filter((item) => item.item_id !== itemId));
+      if (target) {
+        const optimisticLog: ConsensusFlag = {
+          ...target,
+          status: verdict === 'confirm' ? 'confirmed' : 'dismissed',
+          analyst_verdict: verdict,
+          review_factor: verdict === 'confirm' ? 1.0 : 0.0,
+        };
+        setAnalystReportLog((prev) => [optimisticLog, ...prev.filter((p) => p.item_id !== itemId)]);
+      }
 
-      await fetch(`/api/items/${itemId}/verdict`, {
+      const res = await fetch(`/api/items/${itemId}/verdict`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ verdict }),
       });
+
+      if (res.ok) {
+        const updatedFlag: ConsensusFlag = await res.json();
+        setAnalystReportLog((prev) => [updatedFlag, ...prev.filter((p) => p.item_id !== itemId)]);
+      }
 
       refreshData();
     } catch (err: any) {
@@ -146,65 +170,93 @@ export function App() {
     }
   };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 60) return 'text-rose-400 bg-rose-950/40 border-rose-800/60';
-    if (score >= 35) return 'text-amber-400 bg-amber-950/40 border-amber-800/60';
-    return 'text-emerald-400 bg-emerald-950/40 border-emerald-800/60';
+  const getScoreBadgeClass = (score: number) => {
+    if (score >= 60) return 'text-rose-300 bg-rose-950/60 border-rose-500/40 neon-border-rose shadow-lg shadow-rose-950/50';
+    if (score >= 35) return 'text-amber-300 bg-amber-950/60 border-amber-500/40 neon-border-amber shadow-lg shadow-amber-950/50';
+    return 'text-emerald-300 bg-emerald-950/60 border-emerald-500/40 neon-border-emerald shadow-lg shadow-emerald-950/50';
+  };
+
+  const getCardTopStripe = (score: number) => {
+    if (score >= 60) return 'from-rose-500 via-rose-400 to-amber-500';
+    if (score >= 35) return 'from-amber-500 via-amber-400 to-sky-400';
+    return 'from-emerald-400 via-teal-400 to-sky-400';
   };
 
   const getRiskTypeBadge = (type: string) => {
     switch (type) {
       case 'legal':
-        return 'bg-purple-950/70 text-purple-300 border border-purple-800/50';
+        return 'bg-purple-950/70 text-purple-300 border border-purple-700/60 shadow-sm shadow-purple-950/40';
       case 'compliance':
-        return 'bg-blue-950/70 text-blue-300 border border-blue-800/50';
+        return 'bg-blue-950/70 text-blue-300 border border-blue-700/60 shadow-sm shadow-blue-950/40';
       case 'operational':
-        return 'bg-amber-950/70 text-amber-300 border border-amber-800/50';
+        return 'bg-amber-950/70 text-amber-300 border border-amber-700/60 shadow-sm shadow-amber-950/40';
       default:
         return 'bg-slate-800 text-slate-300 border border-slate-700';
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0c10] text-slate-100 px-4 py-8 max-w-7xl mx-auto font-sans">
+    <div className="min-h-screen relative bg-black text-slate-100 selection:bg-sky-500/30 selection:text-sky-200 overflow-x-hidden">
+      {/* Celestial Deep Space Sky with Moving Stars, Shooting Meteors & Luminous Orbiting Moon */}
+      <CelestialBackground />
+
+      {/* Main Content Layer */}
+      <div className="relative z-10 px-4 py-8 max-w-7xl mx-auto font-sans">
+        {/* Ambient Lighting Orbs */}
+        <div className="ambient-glow-1"></div>
+        <div className="ambient-glow-2"></div>
+        <div className="ambient-glow-3"></div>
+
       {/* Header */}
-      <header className="border-b border-slate-800 pb-6 mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <span className="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></span>
-            <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-              Corporate Risk Radar
-              <span className="text-xs uppercase px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-semibold border border-slate-700">
-                Fintech PS 01
-              </span>
-            </h1>
+      <header className="glass-panel rounded-2xl p-6 mb-8 relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 border border-white/10 shadow-2xl">
+        <div className="flex items-start gap-4">
+          {/* Animated Radar Pulse Icon */}
+          <div className="relative h-12 w-12 rounded-xl bg-gradient-to-tr from-sky-500/20 via-indigo-500/20 to-purple-500/20 border border-sky-400/30 flex items-center justify-center overflow-hidden shrink-0 shadow-lg shadow-sky-500/10">
+            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-sky-400/15 to-transparent animate-radar origin-center"></div>
+            <div className="h-4 w-4 rounded-full border border-sky-400/60 flex items-center justify-center">
+              <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse"></span>
+            </div>
           </div>
-          <p className="text-sm text-slate-400 mt-1">
-            Continuous multi-source surveillance, dual-LLM consensus (Mistral + Blind Verifier) & Neo4j graph explainability.
-          </p>
+
+          <div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white flex items-center gap-2.5">
+                <span className="bg-gradient-to-r from-white via-slate-100 to-sky-200 bg-clip-text text-transparent">
+                  Corporate Risk Radar
+                </span>
+                <span className="text-[11px] uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-sky-950/80 text-sky-300 font-semibold border border-sky-700/60 shadow-sm">
+                  Fintech PS 01
+                </span>
+              </h1>
+            </div>
+            <p className="text-xs md:text-sm text-slate-400 mt-1 max-w-2xl leading-relaxed">
+              Autonomous multi-source continuous surveillance, Dual-LLM consensus (<span className="text-slate-200 font-medium">Mistral</span> + <span className="text-slate-200 font-medium">Blind Verifier</span>) & Neo4j knowledge graph topology.
+            </p>
+          </div>
         </div>
 
         {/* System Health / Status Indicators */}
-        <div className="flex flex-wrap items-center gap-2.5 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
           {lastUpdated && (
-            <span className="text-[11px] text-slate-500 font-mono">
-              Live: {lastUpdated}
-            </span>
+            <div className="glass-pill px-3 py-1.5 rounded-lg text-[11px] text-slate-400 font-mono flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Live: <span className="text-slate-200">{lastUpdated}</span>
+            </div>
           )}
 
           {health?.mock_mode && (
-            <span className="px-2.5 py-1 rounded-md bg-amber-950/50 text-amber-300 border border-amber-700/60 flex items-center gap-1.5 font-medium">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
-              DEMO DATA / MOCK MODE
+            <span className="px-3 py-1.5 rounded-lg bg-amber-950/60 text-amber-300 border border-amber-600/60 flex items-center gap-1.5 font-medium shadow-sm">
+              <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping"></span>
+              DEMO DATA MODE
             </span>
           )}
 
           <div
-            className="px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800 flex items-center gap-2 cursor-help"
+            className="glass-pill px-3.5 py-1.5 rounded-lg flex items-center gap-2 cursor-help"
             title={
               health?.neo4j?.connected
                 ? 'Connected to live Neo4j AuraDB instance'
-                : 'Active in-memory graph repository fallback'
+                : 'Active in-memory knowledge graph fallback'
             }
           >
             <span className="text-slate-400">Graph:</span>
@@ -215,23 +267,23 @@ export function App() {
             >
               <span
                 className={`h-2 w-2 rounded-full ${
-                  health?.neo4j?.connected ? 'bg-emerald-400' : 'bg-sky-400'
+                  health?.neo4j?.connected ? 'bg-emerald-400 shadow-sm shadow-emerald-400' : 'bg-sky-400 shadow-sm shadow-sky-400'
                 }`}
               ></span>
               {health?.neo4j?.connected ? 'AuraDB' : 'In-Memory'}
             </span>
           </div>
 
-          <div className="px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800 flex items-center gap-2 text-slate-300 font-mono">
+          <div className="glass-pill px-3 py-1.5 rounded-lg flex items-center gap-2 text-slate-300 font-mono">
             <span className="text-slate-400 font-sans">Nodes:</span>
-            <span className="font-bold text-slate-200">
+            <span className="font-bold text-white">
               {health?.neo4j?.node_count ?? 0}
             </span>
           </div>
 
-          <div className="px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800 flex items-center gap-2 text-slate-300 font-mono">
+          <div className="glass-pill px-3 py-1.5 rounded-lg flex items-center gap-2 text-slate-300 font-mono">
             <span className="text-slate-400 font-sans">Edges:</span>
-            <span className="font-bold text-slate-200">
+            <span className="font-bold text-white">
               {health?.neo4j?.relationship_count ?? 0}
             </span>
           </div>
@@ -239,7 +291,7 @@ export function App() {
       </header>
 
       {/* Interactive Sandbox Simulator */}
-      <div className="mb-6">
+      <div className="mb-8 relative z-10">
         <SimulateControl
           onSimulate={handleSimulate}
           onReset={handleReset}
@@ -248,92 +300,105 @@ export function App() {
       </div>
 
       {error && (
-        <div className="mb-6 p-4 rounded-lg bg-rose-950/30 border border-rose-800/50 text-rose-300 text-sm flex items-center justify-between">
+        <div className="mb-6 p-4 rounded-xl glass-panel bg-rose-950/40 border border-rose-500/50 text-rose-300 text-sm flex items-center justify-between shadow-xl">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-rose-400 hover:text-white">✕</button>
+          <button onClick={() => setError(null)} className="text-rose-400 hover:text-white p-1">✕</button>
         </div>
       )}
 
       {/* Main Scoreboard */}
-      <main className="space-y-8">
+      <main className="space-y-10 relative z-10">
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
-              Corporate Risk Scoreboard (Watchlist)
-              <span className="text-xs text-slate-400 font-normal">Ranked by 24h delta surge</span>
-            </h2>
-            <div className="text-xs text-slate-400">
-              0 - 100 Index with 7-Day Exponential Decay
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2.5">
+                Corporate Risk Scoreboard
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800/80 text-slate-300 font-normal border border-slate-700/60">
+                  Ranked by 24h delta surge
+                </span>
+              </h2>
+            </div>
+            <div className="text-xs text-slate-400 font-mono glass-pill px-3 py-1 rounded-lg">
+              0 - 100 Index · 7d Half-Life Decay
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {companies.map((comp) => (
               <div
                 key={comp.ticker}
                 onClick={() => setSelectedCompany(comp)}
-                className="bg-[#121620] border border-slate-800 rounded-xl p-5 hover:border-sky-500/50 hover:shadow-sky-500/5 transition-all duration-200 shadow-lg flex flex-col justify-between cursor-pointer group"
+                className="glass-card rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between cursor-pointer group hover:border-sky-400/40"
               >
+                {/* Top Glowing Gradient Accent Bar */}
+                <div
+                  className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${getCardTopStripe(
+                    comp.current_index
+                  )} opacity-80 group-hover:opacity-100 transition-opacity`}
+                ></div>
+
                 <div>
                   {/* Top row: Ticker, Name, Index */}
-                  <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-start justify-between mb-4">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-xl font-bold text-white tracking-wide group-hover:text-sky-300 transition-colors">
+                      <div className="flex items-center gap-2.5">
+                        <h3 className="text-2xl font-black text-white tracking-wide group-hover:text-sky-300 transition-colors">
                           {comp.ticker}
                         </h3>
-                        <span className={`text-xs px-2 py-0.5 rounded font-medium ${getRiskTypeBadge(comp.top_risk_type)}`}>
+                        <span className={`text-[11px] px-2.5 py-0.5 rounded-md font-semibold tracking-wider ${getRiskTypeBadge(comp.top_risk_type)}`}>
                           {comp.top_risk_type.toUpperCase()}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5">{comp.name}</p>
+                      <p className="text-xs text-slate-400 mt-1 font-medium">{comp.name}</p>
                     </div>
 
-                    <div className={`text-right px-3 py-1.5 rounded-lg border ${getScoreColor(comp.current_index)}`}>
-                      <div className="text-2xl font-black font-mono leading-none">
+                    <div className={`text-right px-3.5 py-2 rounded-xl border ${getScoreBadgeClass(comp.current_index)}`}>
+                      <div className="text-2xl font-black font-mono leading-none tracking-tight">
                         {comp.current_index.toFixed(1)}
                       </div>
-                      <div className="text-[10px] font-semibold mt-1">
+                      <div className="text-[10px] font-semibold mt-1 font-mono tracking-tight">
                         {comp.delta_24h >= 0 ? `+${comp.delta_24h.toFixed(1)}` : comp.delta_24h.toFixed(1)} 24h
                       </div>
                     </div>
                   </div>
 
                   {/* Badges */}
-                  <div className="flex flex-wrap gap-1.5 my-3">
+                  <div className="flex flex-wrap gap-1.5 my-3.5">
                     {comp.repeat_issue && (
-                      <span className="text-[11px] px-2 py-0.5 rounded bg-rose-950/60 text-rose-300 border border-rose-800/50 font-medium">
+                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-rose-950/60 text-rose-300 border border-rose-800/50 font-medium shadow-sm">
                         ⚠️ Repeat Issue (3+ in 90d)
                       </span>
                     )}
                     {comp.contagion && (
-                      <span className="text-[11px] px-2 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800/50 font-medium">
+                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-950/60 text-amber-300 border border-amber-800/50 font-medium shadow-sm">
                         ⚡ Contagion (2+ Cos)
                       </span>
                     )}
                     {comp.needs_review_count > 0 && (
-                      <span className="text-[11px] px-2 py-0.5 rounded bg-blue-950/60 text-blue-300 border border-blue-800/50 font-medium">
+                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-blue-950/60 text-blue-300 border border-blue-800/50 font-medium shadow-sm">
                         🔍 Needs Review: {comp.needs_review_count}
                       </span>
                     )}
                   </div>
 
                   {/* Topic & One-line reason */}
-                  <div className="mt-2 text-xs">
-                    <span className="text-slate-400">Top Topic: </span>
-                    <span className="text-slate-200 font-medium capitalize">{comp.top_topic}</span>
+                  <div className="mt-3 text-xs flex items-center gap-1.5">
+                    <span className="text-slate-400">Top Topic:</span>
+                    <span className="text-slate-200 font-semibold capitalize bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                      {comp.top_topic}
+                    </span>
                   </div>
 
-                  <p className="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed bg-[#0c0f16] p-2.5 rounded border border-slate-800/60">
+                  <p className="text-xs text-slate-400 mt-2.5 line-clamp-2 leading-relaxed bg-[#080b11]/60 p-3 rounded-xl border border-white/5 shadow-inner">
                     {comp.one_line_reason}
                   </p>
                 </div>
 
                 {/* Footer action */}
-                <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-                  <span>Rolling S Decay (7d half-life)</span>
-                  <span className="text-sky-400 group-hover:text-sky-300 font-medium flex items-center gap-1">
-                    Open Evidence Drawer &rarr;
+                <div className="mt-5 pt-3.5 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
+                  <span className="font-mono text-[11px]">Half-life decay: 7d</span>
+                  <span className="text-sky-400 group-hover:text-sky-300 font-semibold flex items-center gap-1 transition-transform group-hover:translate-x-1">
+                    Explore Evidence Topology &rarr;
                   </span>
                 </div>
               </div>
@@ -341,9 +406,10 @@ export function App() {
           </div>
         </div>
 
-        {/* Human Analyst Review Lane */}
+        {/* Human Analyst Review Lane & Report Log */}
         <ReviewQueueLane
           queue={reviewQueue}
+          reportLog={analystReportLog}
           onVerdict={handleVerdict}
           loading={loading}
         />
@@ -358,23 +424,25 @@ export function App() {
 
       {/* Slide-over Evidence Drawer */}
       <EvidenceDrawer
+        key={selectedCompany?.ticker || 'empty'}
         company={selectedCompany}
         onClose={() => setSelectedCompany(null)}
       />
 
       {/* Footer */}
-      <footer className="mt-12 pt-6 border-t border-slate-800/60 text-xs text-slate-500 flex flex-col md:flex-row items-center justify-between gap-3">
+      <footer className="mt-16 pt-8 border-t border-white/10 text-xs text-slate-500 flex flex-col md:flex-row items-center justify-between gap-4 relative z-10">
         <div>Corporate Risk Radar &copy; 2026 — Dual-LLM Consensus Corporate Risk Intelligence</div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 text-slate-400">
           <span>FastAPI Backend</span>
           <span>&bull;</span>
           <span>Neo4j AuraDB Knowledge Graph</span>
           <span>&bull;</span>
-          <span>Tailwind v4 UI</span>
+          <span>Glassmorphic Architecture</span>
         </div>
       </footer>
     </div>
-  );
+  </div>
+);
 }
 
 export default App;

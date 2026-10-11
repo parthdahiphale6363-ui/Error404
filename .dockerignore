@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Sensitive environment credentials
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+venv/
+.venv/
+env/
+
+# Node & Frontend artifacts
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+.npm
+npm-debug.log*
+yarn-debug.log*
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Internal agent logs & temp
+.agent/

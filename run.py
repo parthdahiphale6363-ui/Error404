@@ -21,8 +21,15 @@ FRONTEND_DIR = ROOT_DIR / "frontend"
 
 
 def auto_open_browser():
-    """Wait 1.5s for servers to initialize, then launch dashboard in browser."""
-    time.sleep(1.5)
+    """Wait until backend server is ready before launching dashboard in browser."""
+    import urllib.request
+    for _ in range(30):
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:8000/health", timeout=1) as resp:
+                if resp.status == 200:
+                    break
+        except Exception:
+            time.sleep(0.4)
     try:
         webbrowser.open("http://localhost:3000")
     except Exception:
@@ -34,8 +41,8 @@ def main():
     print("  [Risk Radar] Corporate Risk Radar (Fintech PS 01) - Single Runner")
     print("=" * 68)
     print("  * Live Dashboard (UI):    http://localhost:3000   (opening in browser...)")
-    print("  * FastAPI Backend API:    http://localhost:8000   (redirects to UI)")
-    print("  * Swagger API Docs:       http://localhost:8000/docs")
+    print("  * FastAPI Backend API:    http://127.0.0.1:8000   (redirects to UI)")
+    print("  * Swagger API Docs:       http://127.0.0.1:8000/docs")
     print("=" * 68)
     print("  Press Ctrl+C at any time to stop all services.\n")
 
@@ -49,7 +56,7 @@ def main():
         "uvicorn",
         "backend.main:app",
         "--host",
-        "0.0.0.0",
+        "127.0.0.1",
         "--port",
         "8000",
         "--reload",

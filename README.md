@@ -89,57 +89,90 @@
 
 ---
 
-## 🚀 Quickstart & Setup
+## 🚀 Quickstart & Running Instructions
 
-### 1. Prerequisites
-- Python 3.12+
-- Node.js v20+ & npm
+### Method 1: Run with Docker Compose (Recommended for Production & Containers)
+Launch both the **FastAPI Backend** and the **React 19 Frontend (Nginx)** in isolated containers with a single command:
 
-### 2. Environment Configuration
-Copy `.env.example` to `.env` and fill in API credentials:
 ```bash
+# Build and run all containers in attached mode
+docker compose up --build
+
+# Or run in detached (background) mode
+docker compose up -d --build
+
+# View running container logs
+docker compose logs -f
+
+# Stop all containers
+docker compose down
+```
+
+Once running:
+- 🌐 **Dashboard UI**: [http://localhost:3000](http://localhost:3000)
+- 🔌 **FastAPI Backend API**: [http://localhost:8000](http://localhost:8000)
+- 📚 **Interactive Swagger API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- 🩺 **Health Check**: [http://localhost:8000/health](http://localhost:8000/health)
+
+---
+
+### Method 2: Single-Command Local Runner (Backend + Frontend Together)
+If running directly on your host machine without Docker:
+
+```bash
+# Prerequisites: Python 3.12+ and Node.js v20+
+
+# 1. Configure environment variables (optional for local mock mode)
 cp .env.example .env
-```
-*(Never commit `.env` to version control; it is securely ignored by `.gitignore`)*
 
-### 3. Single-Command Runner (Backend + Frontend Together)
-Run both the FastAPI backend and React Vite frontend concurrently with one command:
-```bash
+# 2. Run both Backend and Frontend concurrently with auto-browser launch:
 python run.py
+
+# (On Windows, you can alternatively double-click or run):
+.\run.bat
 ```
-*(Or double-click `run.bat` on Windows)*
 
-- **Dashboard UI**: [http://localhost:3000](http://localhost:3000)
-- **FastAPI API**: [http://localhost:8000](http://localhost:8000)
-- **API Docs (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+The runner script automatically launches `http://localhost:3000` in your default browser once the backend health probe passes, and safely terminates both processes on `Ctrl+C`.
 
-### 4. Running Components Individually (Optional)
+---
+
+### Method 3: Running Components Individually
+
+#### A. Backend (FastAPI + Uvicorn)
 ```bash
 # Install Python dependencies
-pip install -r requirements.txt   # or pip install fastapi pydantic pytest neo4j httpx pyyaml resend groq google-genai
+pip install -r requirements.txt
 
-# Run migrations & schema constraints
+# Run database schema migrations & constraints
 python -m backend.db.migrate
 
-# Start FastAPI backend server
+# Start FastAPI server on port 8000 with auto-reload
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 4. Frontend Setup
+#### B. Frontend (React 19 + Vite)
 ```bash
 cd frontend
+
+# Install Node dependencies
 npm install
+
+# Start Vite dev server on port 3000
 npm run dev
 ```
-Dashboard available at `http://localhost:3000` (or `http://localhost:5173`).
 
-### 5. Running Tests
+---
+
+### 🧪 Running Tests & Quality Verification
+
 ```bash
-# Run all backend unit, contract, graph, and e2e tests
+# Run all backend unit, contract, graph, and e2e tests (29/29 tests)
 python -m pytest
 
-# Run frontend typecheck, linter, and production build
-cd frontend && npm run build && npm run lint
+# Run frontend type-check, linter, and production build
+cd frontend
+npm run build
+npm run lint
 ```
 
 ---
