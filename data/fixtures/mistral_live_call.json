@@ -1,0 +1,22 @@
+{
+  "provider": "mistral",
+  "model": "open-mistral-7b",
+  "status": 200,
+  "response": {
+    "company": "Wells Fargo",
+    "risk_type": "compliance",
+    "severity": 5,
+    "confidence": 0.95,
+    "reason": "CFPB consent order and $3.7B fine for widespread consumer account mismanagement and illegal auto/mortgage loan charges.",
+    "topics": [
+      "unauthorized accounts or fraud",
+      "mortgage or loan servicing",
+      "enforcement action"
+    ],
+    "regulators": [
+      "CFPB",
+      "OCC",
+      "Federal Reserve"
+    ]
+  }
+}

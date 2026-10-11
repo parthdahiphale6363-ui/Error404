@@ -1,0 +1,135 @@
+# API Gateway Endpoints Registry
+# Strict Anti-Hallucination: ONLY endpoints defined here may be queried by the system.
+endpoints:
+  finnhub_company_news:
+    name: "finnhub_company_news"
+    url: "https://finnhub.io/api/v1/company-news"
+    method: "GET"
+    params:
+      - "symbol"
+      - "from"
+      - "to"
+    auth:
+      type: "header"
+      key: "X-Finnhub-Token"
+      env_var: "FINNHUB_API_KEY"
+    rate_limit:
+      calls: 30
+      period_seconds: 60
+    fixture_path: "data/fixtures/finnhub_company_news.json"
+
+  cfpb_complaints:
+    name: "cfpb_complaints"
+    url: "https://www.consumerfinance.gov/data-research/consumer-complaints/search/api/v1/"
+    method: "GET"
+    params:
+      - "company"
+      - "date_received_min"
+      - "date_received_max"
+      - "has_narrative"
+      - "size"
+      - "sort"
+    auth:
+      type: "custom_header"
+      key: "User-Agent"
+      env_var: "USER_AGENT_EMAIL"
+    rate_limit:
+      calls: 10
+      period_seconds: 60
+    fixture_path: "data/fixtures/cfpb_complaints.json"
+
+  edgar_submissions:
+    name: "edgar_submissions"
+    url: "https://data.sec.gov/submissions/CIK{cik}.json"
+    method: "GET"
+    params:
+      - "cik"
+    auth:
+      type: "custom_header"
+      key: "User-Agent"
+      env_var: "USER_AGENT_EMAIL"
+    rate_limit:
+      calls: 10
+      period_seconds: 1
+    fixture_path: "data/fixtures/edgar_submissions.json"
+
+  gemini_models:
+    name: "gemini_models"
+    url: "https://generativelanguage.googleapis.com/v1beta/models"
+    method: "GET"
+    params: []
+    auth:
+      type: "header"
+      key: "x-goog-api-key"
+      env_var: "GEMINI_API_KEY"
+    rate_limit:
+      calls: 15
+      period_seconds: 60
+    fixture_path: "data/fixtures/gemini_models.json"
+
+  gemini_generate_content:
+    name: "gemini_generate_content"
+    url: "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    method: "POST"
+    params:
+      - "model"
+    auth:
+      type: "header"
+      key: "x-goog-api-key"
+      env_var: "GEMINI_API_KEY"
+    rate_limit:
+      calls: 15
+      period_seconds: 60
+    fixture_path: "data/fixtures/gemini_models.json"
+
+  groq_models:
+    name: "groq_models"
+    url: "https://api.groq.com/openai/v1/models"
+    method: "GET"
+    params: []
+    auth:
+      type: "bearer"
+      env_var: "GROQ_API_KEY"
+    rate_limit:
+      calls: 30
+      period_seconds: 60
+    fixture_path: "data/fixtures/groq_models.json"
+
+  groq_chat:
+    name: "groq_chat"
+    url: "https://api.groq.com/openai/v1/chat/completions"
+    method: "POST"
+    params: []
+    auth:
+      type: "bearer"
+      env_var: "GROQ_API_KEY"
+    rate_limit:
+      calls: 30
+      period_seconds: 60
+    fixture_path: "data/fixtures/groq_models.json"
+
+  mistral_models:
+    name: "mistral_models"
+    url: "https://api.mistral.ai/v1/models"
+    method: "GET"
+    params: []
+    auth:
+      type: "bearer"
+      env_var: "MISTRAL_API_KEY"
+    rate_limit:
+      calls: 30
+      period_seconds: 60
+    fixture_path: "data/fixtures/mistral_models.json"
+
+  mistral_chat:
+    name: "mistral_chat"
+    url: "https://api.mistral.ai/v1/chat/completions"
+    method: "POST"
+    params: []
+    auth:
+      type: "bearer"
+      env_var: "MISTRAL_API_KEY"
+    rate_limit:
+      calls: 30
+      period_seconds: 60
+    fixture_path: "data/fixtures/mistral_models.json"

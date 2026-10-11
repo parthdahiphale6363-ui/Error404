@@ -1,0 +1,81 @@
+{
+  "metadata": {
+    "title": "Corporate Risk Radar — Accuracy & Time-Machine Replay Scorecard",
+    "exported_at": "2026-10-11T11:28:00Z",
+    "target_companies": [
+      "WFC",
+      "EFX",
+      "PYPL",
+      "COIN",
+      "NAVI"
+    ]
+  },
+  "accuracy_benchmark": {
+    "status": "LABELS_PENDING",
+    "stratified_candidates_generated": 60,
+    "stratification": {
+      "WFC": 12,
+      "EFX": 12,
+      "PYPL": 12,
+      "COIN": 12,
+      "NAVI": 12
+    },
+    "note": "Awaiting user labels for 40 items in data/labeled/labeled_items.jsonl before computing final precision/recall/confusion-matrix"
+  },
+  "replay_scorecard": {
+    "proposed_cases": [
+      {
+        "case_id": "WFC_2022_CFPB_MISMANAGEMENT",
+        "company": "WFC",
+        "official_action": "CFPB Orders Wells Fargo to Pay $3.7B for Loan and Overdraft Mismanagement",
+        "official_event_date": "2022-12-20",
+        "official_source_url": "https://www.consumerfinance.gov/about-us/newsroom/cfpb-orders-wells-fargo-to-pay-37-billion-for-widespread-mismanagement-of-auto-loans-mortgages-and-deposit-accounts/",
+        "expected_lead_time_days": 96,
+        "target_signal_types": [
+          "compliance",
+          "operational"
+        ]
+      },
+      {
+        "case_id": "COIN_2023_SEC_UNREGISTERED_EXCHANGE",
+        "company": "COIN",
+        "official_action": "SEC Files Lawsuit Against Coinbase for Operating as Unregistered Exchange",
+        "official_event_date": "2023-06-06",
+        "official_source_url": "https://www.sec.gov/news/press-release/2023-102",
+        "expected_lead_time_days": 76,
+        "target_signal_types": [
+          "legal",
+          "compliance"
+        ]
+      },
+      {
+        "case_id": "NAVI_2024_CFPB_BAN",
+        "company": "NAVI",
+        "official_action": "CFPB Orders Navient to Pay $120M and Permanently Bans Federal Loan Servicing",
+        "official_event_date": "2024-09-12",
+        "official_source_url": "https://www.consumerfinance.gov/about-us/newsroom/cfpb-orders-navient-to-pay-120-million-for-years-of-student-loan-servicing-failures/",
+        "expected_lead_time_days": 90,
+        "target_signal_types": [
+          "compliance",
+          "legal"
+        ]
+      }
+    ],
+    "calm_controls": [
+      {
+        "control_id": "PYPL_Q2_2023_CALM",
+        "company": "PYPL",
+        "window": "2023-04-01 to 2023-06-30",
+        "description": "Routine payment processing operations with steady complaint baseline and no enforcement actions.",
+        "target_false_alarm": false
+      },
+      {
+        "control_id": "EFX_Q1_2024_CALM",
+        "company": "EFX",
+        "window": "2024-01-01 to 2024-03-31",
+        "description": "Standard credit reporting operations following settled remediation programs with no major investigations.",
+        "target_false_alarm": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,930 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Corporate Risk Radar API",
+    "description": "Automated Corporate Risk Radar (Fintech PS 01)",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Get Health",
+        "description": "System status, Neo4j connection, node/relationship counts, capacity warning.",
+        "operationId": "get_health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/companies": {
+      "get": {
+        "summary": "Get Companies",
+        "description": "List 5 companies with current rolling index, 24h delta, badges, top topic.",
+        "operationId": "get_companies_companies_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompanySummary"
+                  },
+                  "type": "array",
+                  "title": "Response Get Companies Companies Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/companies/{ticker}/explanation": {
+      "get": {
+        "summary": "Get Company Explanation",
+        "description": "Grounded 2-line explanation citing retrieved graph items.",
+        "operationId": "get_company_explanation_companies__ticker__explanation_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExplanationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/companies/{ticker}/evidence-graph": {
+      "get": {
+        "summary": "Get Company Evidence Graph",
+        "description": "Nodes and edges for evidence path visualization.",
+        "operationId": "get_company_evidence_graph_companies__ticker__evidence_graph_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceGraphData"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/review-queue": {
+      "get": {
+        "summary": "Get Review Queue",
+        "description": "Items with status 'needs_review' requiring human analyst confirmation.",
+        "operationId": "get_review_queue_review_queue_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConsensusFlag"
+                  },
+                  "type": "array",
+                  "title": "Response Get Review Queue Review Queue Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/items/{id}/verdict": {
+      "post": {
+        "summary": "Submit Verdict",
+        "description": "Analyst confirms or dismisses flagged item.",
+        "operationId": "submit_verdict_items__id__verdict_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerdictRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsensusFlag"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alerts": {
+      "get": {
+        "summary": "Get Alerts",
+        "description": "History of generated alerts (including dry-run HTML preview links).",
+        "operationId": "get_alerts_alerts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AlertRecord"
+                  },
+                  "type": "array",
+                  "title": "Response Get Alerts Alerts Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alerts/test": {
+      "post": {
+        "summary": "Trigger Test Alert",
+        "description": "Send one test alert to verify delivery.",
+        "operationId": "trigger_test_alert_alerts_test_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Get Metrics",
+        "description": "Precision, recall, single-model vs consensus lift, agreement rate.",
+        "operationId": "get_metrics_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stream": {
+      "get": {
+        "summary": "Get Stream",
+        "description": "Server-Sent Events (SSE) live push stream with 10s polling heartbeat.",
+        "operationId": "get_stream_stream_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulate": {
+      "post": {
+        "summary": "Simulate Item",
+        "description": "Inject simulated risk scenario item (is_simulated=true).",
+        "operationId": "simulate_item_simulate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reset": {
+      "post": {
+        "summary": "Reset Simulated",
+        "description": "Remove simulated items and reset indices.",
+        "operationId": "reset_simulated_reset_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AlertRecord": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "Idempotency key: company+rule+bucket"
+          },
+          "ts": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ts"
+          },
+          "company": {
+            "type": "string",
+            "title": "Company"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule",
+            "description": "Rule A, B, C or Daily Briefing"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "body_html": {
+            "type": "string",
+            "title": "Body Html"
+          },
+          "body_text": {
+            "type": "string",
+            "title": "Body Text"
+          },
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recipients"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "sent or dry_run_saved",
+            "default": "sent"
+          },
+          "is_simulated": {
+            "type": "boolean",
+            "title": "Is Simulated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "ts",
+          "company",
+          "rule",
+          "subject",
+          "body_html",
+          "body_text",
+          "recipients"
+        ],
+        "title": "AlertRecord",
+        "description": "Generated alert event."
+      },
+      "AnalystVerdict": {
+        "type": "string",
+        "enum": [
+          "confirm",
+          "dismiss"
+        ],
+        "title": "AnalystVerdict"
+      },
+      "CompanySummary": {
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "current_index": {
+            "type": "number",
+            "title": "Current Index"
+          },
+          "previous_24h_index": {
+            "type": "number",
+            "title": "Previous 24H Index"
+          },
+          "delta_24h": {
+            "type": "number",
+            "title": "Delta 24H"
+          },
+          "top_risk_type": {
+            "$ref": "#/components/schemas/RiskType"
+          },
+          "top_topic": {
+            "type": "string",
+            "title": "Top Topic"
+          },
+          "repeat_issue": {
+            "type": "boolean",
+            "title": "Repeat Issue",
+            "default": false
+          },
+          "contagion": {
+            "type": "boolean",
+            "title": "Contagion",
+            "default": false
+          },
+          "needs_review_count": {
+            "type": "integer",
+            "title": "Needs Review Count",
+            "default": 0
+          },
+          "one_line_reason": {
+            "type": "string",
+            "title": "One Line Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticker",
+          "name",
+          "current_index",
+          "previous_24h_index",
+          "delta_24h",
+          "top_risk_type",
+          "top_topic",
+          "one_line_reason"
+        ],
+        "title": "CompanySummary"
+      },
+      "ConsensusFlag": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "company": {
+            "type": "string",
+            "title": "Company"
+          },
+          "source_url": {
+            "type": "string",
+            "title": "Source Url"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Date"
+          },
+          "risk_type": {
+            "$ref": "#/components/schemas/RiskType"
+          },
+          "primary_severity": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Primary Severity"
+          },
+          "final_severity": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Final Severity"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ConsensusStatus"
+          },
+          "review_factor": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Review Factor"
+          },
+          "topics": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Topics"
+          },
+          "regulators": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Regulators"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "verifier_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verifier Provider"
+          },
+          "verifier_severity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verifier Severity"
+          },
+          "verifier_risk_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "analyst_verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnalystVerdict"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_simulated": {
+            "type": "boolean",
+            "title": "Is Simulated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "company",
+          "source_url",
+          "date",
+          "risk_type",
+          "primary_severity",
+          "final_severity",
+          "confidence",
+          "status",
+          "review_factor",
+          "reason"
+        ],
+        "title": "ConsensusFlag",
+        "description": "Aggregated consensus flag with review factor."
+      },
+      "ConsensusStatus": {
+        "type": "string",
+        "enum": [
+          "agreed",
+          "needs_review",
+          "confirmed",
+          "dismissed",
+          "unflagged"
+        ],
+        "title": "ConsensusStatus"
+      },
+      "EvidenceGraphData": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/EvidencePathNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/EvidencePathEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nodes",
+          "edges"
+        ],
+        "title": "EvidenceGraphData"
+      },
+      "EvidencePathEdge": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "properties": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Properties"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "target",
+          "type"
+        ],
+        "title": "EvidencePathEdge"
+      },
+      "EvidencePathNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "properties": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Properties"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "properties"
+        ],
+        "title": "EvidencePathNode"
+      },
+      "ExplanationResponse": {
+        "properties": {
+          "company": {
+            "type": "string",
+            "title": "Company"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "title": "As Of"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "cited_item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cited Item Ids"
+          },
+          "evidence_paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Paths"
+          }
+        },
+        "type": "object",
+        "required": [
+          "company",
+          "as_of",
+          "summary",
+          "cited_item_ids"
+        ],
+        "title": "ExplanationResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "app": {
+            "type": "string",
+            "title": "App"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "mock_mode": {
+            "type": "boolean",
+            "title": "Mock Mode"
+          },
+          "neo4j": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Neo4J"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "app",
+          "version",
+          "mock_mode",
+          "neo4j"
+        ],
+        "title": "HealthResponse"
+      },
+      "MetricsResponse": {
+        "properties": {
+          "precision": {
+            "type": "number",
+            "title": "Precision"
+          },
+          "recall": {
+            "type": "number",
+            "title": "Recall"
+          },
+          "consensus_precision": {
+            "type": "number",
+            "title": "Consensus Precision"
+          },
+          "consensus_recall": {
+            "type": "number",
+            "title": "Consensus Recall"
+          },
+          "lift": {
+            "type": "number",
+            "title": "Lift"
+          },
+          "agreement_rate": {
+            "type": "number",
+            "title": "Agreement Rate"
+          },
+          "total_evaluated": {
+            "type": "integer",
+            "title": "Total Evaluated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "precision",
+          "recall",
+          "consensus_precision",
+          "consensus_recall",
+          "lift",
+          "agreement_rate",
+          "total_evaluated"
+        ],
+        "title": "MetricsResponse"
+      },
+      "RiskType": {
+        "type": "string",
+        "enum": [
+          "legal",
+          "compliance",
+          "operational",
+          "noise"
+        ],
+        "title": "RiskType"
+      },
+      "SimulateRequest": {
+        "properties": {
+          "company": {
+            "type": "string",
+            "title": "Company",
+            "description": "Ticker: WFC, EFX, PYPL, COIN, NAVI",
+            "default": "WFC"
+          },
+          "severity": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Severity",
+            "default": 4
+          },
+          "risk_type": {
+            "$ref": "#/components/schemas/RiskType",
+            "default": "legal"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline",
+            "default": "Simulated major regulatory enforcement action"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": "Simulated test item injected for dashboard demo"
+          }
+        },
+        "type": "object",
+        "title": "SimulateRequest"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VerdictRequest": {
+        "properties": {
+          "verdict": {
+            "$ref": "#/components/schemas/AnalystVerdict",
+            "description": "confirm or dismiss"
+          },
+          "analyst_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analyst Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "verdict"
+        ],
+        "title": "VerdictRequest"
+      }
+    }
+  }
+}

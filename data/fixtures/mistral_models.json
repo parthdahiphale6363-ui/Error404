@@ -1,0 +1,17 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "mistral-small-latest",
+      "object": "model",
+      "created": 1726000000,
+      "owned_by": "mistralai"
+    },
+    {
+      "id": "mistral-large-latest",
+      "object": "model",
+      "created": 1726000000,
+      "owned_by": "mistralai"
+    }
+  ]
+}

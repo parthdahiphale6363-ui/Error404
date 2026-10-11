@@ -1,0 +1,112 @@
+[
+  {
+    "category": "company",
+    "datetime": 1773000000,
+    "headline": "CFPB Orders Wells Fargo to Pay $3.7 Billion for Widespread Mismanagement",
+    "id": 7812901,
+    "image": "https://example.com/wfc-news1.jpg",
+    "related": "WFC",
+    "source": "Reuters",
+    "summary": "The Consumer Financial Protection Bureau ordered Wells Fargo to pay billions in customer redress and penalties for illegal fees and loan mismanagement.",
+    "url": "https://www.reuters.com/business/finance/wells-fargo-cfpb-action-2026"
+  },
+  {
+    "category": "company",
+    "datetime": 1772900000,
+    "headline": "Wells Fargo Announces Routine Quarterly Dividend",
+    "id": 7812902,
+    "image": "https://example.com/wfc-div.jpg",
+    "related": "WFC",
+    "source": "PR Newswire",
+    "summary": "Wells Fargo declared a quarterly dividend of $0.35 per share payable next month.",
+    "url": "https://www.prnewswire.com/news-releases/wells-fargo-quarterly-dividend"
+  },
+  {
+    "category": "company",
+    "datetime": 1773010000,
+    "headline": "Equifax Faces Multistate Attorney General Inquiry Over Credit File Inaccuracies",
+    "id": 7812903,
+    "image": "https://example.com/efx-news.jpg",
+    "related": "EFX",
+    "source": "Bloomberg",
+    "summary": "State attorneys general opened a joint probe into algorithmic errors in Equifax consumer reports causing incorrect loan denials.",
+    "url": "https://www.bloomberg.com/news/articles/equifax-multistate-probe"
+  },
+  {
+    "category": "company",
+    "datetime": 1772910000,
+    "headline": "Equifax Reports Quarterly Cybersecurity Audit Completion",
+    "id": 7812904,
+    "image": "https://example.com/efx-audit.jpg",
+    "related": "EFX",
+    "source": "BusinessWire",
+    "summary": "Independent third-party verification confirmed compliance with multi-state security remediation mandates.",
+    "url": "https://www.businesswire.com/news/equifax-cybersecurity-audit"
+  },
+  {
+    "category": "company",
+    "datetime": 1773020000,
+    "headline": "PayPal Resolves Intermittent Payment Processing Gateway Latency",
+    "id": 7812905,
+    "image": "https://example.com/pypl-news.jpg",
+    "related": "PYPL",
+    "source": "Dow Jones",
+    "summary": "PayPal stated that an infrastructure failure in its checkout authorization engine had been resolved after affecting merchant transactions.",
+    "url": "https://www.wsj.com/articles/paypal-gateway-latency-resolved"
+  },
+  {
+    "category": "company",
+    "datetime": 1772920000,
+    "headline": "CFPB Inquires Into PayPal Digital Wallet User Funds Holds",
+    "id": 7812906,
+    "image": "https://example.com/pypl-cfpb.jpg",
+    "related": "PYPL",
+    "source": "Reuters",
+    "summary": "Regulators sought documentation regarding consumer complaints on account freezes and prolonged settlement holds.",
+    "url": "https://www.reuters.com/business/paypal-cfpb-inquiry"
+  },
+  {
+    "category": "company",
+    "datetime": 1773030000,
+    "headline": "SEC Files Civil Lawsuit Against Coinbase Citing Unregistered Securities Exchange Operations",
+    "id": 7812907,
+    "image": "https://example.com/coin-news.jpg",
+    "related": "COIN",
+    "source": "Reuters",
+    "summary": "The SEC filed a major civil lawsuit in federal court alleging Coinbase operated an unregistered securities exchange and broker-dealer.",
+    "url": "https://www.reuters.com/legal/sec-sues-coinbase-crypto"
+  },
+  {
+    "category": "company",
+    "datetime": 1772930000,
+    "headline": "Coinbase Resolves Service Disruption on Web and Mobile Trading Platforms",
+    "id": 7812908,
+    "image": "https://example.com/coin-outage.jpg",
+    "related": "COIN",
+    "source": "CoinDesk",
+    "summary": "Platform operational status confirmed full recovery of order matching engines after 3 hours of elevated traffic latency.",
+    "url": "https://www.coindesk.com/business/coinbase-trading-platform-restored"
+  },
+  {
+    "category": "company",
+    "datetime": 1773040000,
+    "headline": "Navient Agrees to Nationwide Settlement Over Student Loan Servicing Practices",
+    "id": 7812909,
+    "image": "https://example.com/navi-news.jpg",
+    "related": "NAVI",
+    "source": "Associated Press",
+    "summary": "Navient reached a comprehensive settlement with federal and state regulators regarding forbearance steering allegations.",
+    "url": "https://apnews.com/article/navient-student-loan-settlement"
+  },
+  {
+    "category": "company",
+    "datetime": 1772940000,
+    "headline": "Department of Education Audits Navient Special Direct Loan Portfolios",
+    "id": 7812910,
+    "image": "https://example.com/navi-audit.jpg",
+    "related": "NAVI",
+    "source": "Washington Post",
+    "summary": "Federal compliance auditors initiate comprehensive review of borrower forgiveness credit accounting records.",
+    "url": "https://www.washingtonpost.com/education/navient-federal-loan-audit"
+  }
+]

@@ -1,0 +1,1 @@
+"""Golden benchmark tests package."""

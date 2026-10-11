@@ -1,0 +1,73 @@
+{
+  "cik": "0000072971",
+  "entityType": "operating",
+  "sic": "6021",
+  "sicDescription": "NATIONAL COMMERCIAL BANKS",
+  "name": "WELLS FARGO & COMPANY/MN",
+  "tickers": [
+    "WFC"
+  ],
+  "exchanges": [
+    "NYSE"
+  ],
+  "filings": {
+    "recent": {
+      "accessionNumber": [
+        "0000072971-26-000010",
+        "0000072971-26-000008"
+      ],
+      "filingDate": [
+        "2026-02-15",
+        "2026-01-20"
+      ],
+      "reportDate": [
+        "2026-02-15",
+        "2026-01-20"
+      ],
+      "acceptanceDateTime": [
+        "2026-02-15T16:30:00.000Z",
+        "2026-01-20T17:15:00.000Z"
+      ],
+      "act": [
+        "34",
+        "34"
+      ],
+      "form": [
+        "8-K",
+        "10-K"
+      ],
+      "fileNumber": [
+        "001-02979",
+        "001-02979"
+      ],
+      "filmNumber": [
+        "26123456",
+        "26123457"
+      ],
+      "items": [
+        "Item 8.01 Other Events",
+        ""
+      ],
+      "size": [
+        15234,
+        284520
+      ],
+      "isXBRL": [
+        0,
+        1
+      ],
+      "isInlineXBRL": [
+        0,
+        1
+      ],
+      "primaryDocument": [
+        "wfc-20260215.htm",
+        "wfc-20251231.htm"
+      ],
+      "primaryDocDescription": [
+        "8-K CURRENT REPORT",
+        "10-K ANNUAL REPORT"
+      ]
+    }
+  }
+}

@@ -1,0 +1,170 @@
+{
+  "hits": {
+    "total": {
+      "value": 10,
+      "relation": "eq"
+    },
+    "hits": [
+      {
+        "_id": "8901234",
+        "_source": {
+          "complaint_id": "8901234",
+          "company": "WELLS FARGO & COMPANY",
+          "date_received": "2026-03-10T12:00:00Z",
+          "product": "Checking or savings account",
+          "sub_product": "Checking account",
+          "issue": "Managing an account",
+          "sub_issue": "Deposits and withdrawals",
+          "consumer_complaint_narrative": "Wells Fargo froze my primary checking account without prior notice and assessed repeated unlawful overdraft fees despite sufficient funds.",
+          "company_response_to_consumer": "Closed with explanation",
+          "timely": "Yes",
+          "has_narrative": true
+        }
+      },
+      {
+        "_id": "8901232",
+        "_source": {
+          "complaint_id": "8901232",
+          "company": "WELLS FARGO & COMPANY",
+          "date_received": "2026-03-08T15:20:00Z",
+          "product": "Vehicle loan or lease",
+          "sub_product": "Loan",
+          "issue": "Managing the loan and lease",
+          "sub_issue": "Billing problem",
+          "consumer_complaint_narrative": "Wells Fargo auto finance force-placed insurance on my financed vehicle even though proof of comprehensive coverage was provided multiple times.",
+          "company_response_to_consumer": "Closed with monetary relief",
+          "timely": "Yes",
+          "has_narrative": true
+        }
+      },
+      {
+        "_id": "8901233",
+        "_source": {
+          "complaint_id": "8901233",
+          "company": "EQUIFAX, INC.",
+          "date_received": "2026-03-11T09:30:00Z",
+          "product": "Credit reporting, credit repair services, or other personal consumer reports",
+          "sub_product": "Credit reporting",
+          "issue": "Incorrect information on your report",
+          "sub_issue": "Information belongs to someone else",
+          "consumer_complaint_narrative": "Equifax mixed my credit file with an unrelated individual with a similar name, resulting in fraudulent debt collections appearing on my report.",
+          "company_response_to_consumer": "Closed with non-monetary relief",
+          "timely": "Yes",
+          "has_narrative": true
+        }
+      },
+      {
+        "_id": "8901234",
+        "_source": {
+          "complaint_id": "8901234",
+          "company": "EQUIFAX, INC.",
+          "date_received": "2026-03-06T11:00:00Z",
+          "product": "Credit reporting, credit repair services, or other personal consumer reports",
+          "sub_product": "Credit reporting",
+          "issue": "Problem with a credit reporting company's investigation of an existing problem",
+          "sub_issue": "Their investigation did not fix an error",
+          "consumer_complaint_narrative": "Disputed obsolete bankruptcy public record older than 7 years, but Equifax verified and maintained the record without conducting a reasonable investigation.",
+          "company_response_to_consumer": "Closed with explanation",
+          "timely": "Yes",
+          "has_narrative": true
+        }
+      },
+      {
+        "_id": "8901235",
+        "_source": {
+          "complaint_id": "8901235",
+          "company": "Paypal Holdings, Inc",
+          "date_received": "2026-03-12T14:15:00Z",
+          "product": "Money transfer, virtual currency, or money service",
+          "sub_product": "Mobile or digital wallet",
+          "issue": "Trouble accessing funds",
+          "sub_issue": "Unexpected account hold",
+          "consumer_complaint_narrative": "PayPal placed an arbitrary 180-day hold on over $14,000 in customer funds from my small business with no clear explanation or appeal procedure.",
+          "company_response_to_consumer": "Closed with explanation",
+          "timely": "Yes",
+          "has_narrative": true
+        }
+      },
+      {
+        "_id": "8901236",
+        "_source": {
+          "complaint_id": "8901236",
+          "company": "Paypal Holdings, Inc",
+          "date_received": "2026-03-05T16:45:00Z",
+          "product": "Money transfer, virtual currency, or money service",
+          "sub_product": "Mobile or digital wallet",
+          "issue": "Fraud or scam",
+          "sub_issue": "Unauthorized transactions",
+          "consumer_complaint_narrative": "Unauthorized debit transactions totaling $2,300 were deducted from my linked balance. PayPal denied my fraud dispute within 2 hours without investigation.",
+          "company_response_to_consumer": "Closed with explanation",
+          "timely": "Yes",
+          "has_narrative": true
+        }
+      },
+      {
+        "_id": "8901237",
+        "_source": {
+          "complaint_id": "8901237",
+          "company": "Coinbase, Inc.",
+          "date_received": "2026-03-13T10:00:00Z",
+          "product": "Money transfer, virtual currency, or money service",
+          "sub_product": "Virtual currency",
+          "issue": "Problem with a company's investigation into an existing issue",
+          "sub_issue": "Account lockout",
+          "consumer_complaint_narrative": "Coinbase locked my account during market volatility and refused to provide access to my cryptocurrency holdings for over 3 weeks despite identity verification.",
+          "company_response_to_consumer": "Closed with explanation",
+          "timely": "Yes",
+          "has_narrative": true
+        }
+      },
+      {
+        "_id": "8901238",
+        "_source": {
+          "complaint_id": "8901238",
+          "company": "Coinbase, Inc.",
+          "date_received": "2026-03-04T13:30:00Z",
+          "product": "Money transfer, virtual currency, or money service",
+          "sub_product": "Virtual currency",
+          "issue": "Trouble accessing funds",
+          "sub_issue": "Withdrawal execution delayed",
+          "consumer_complaint_narrative": "Attempted ACH withdrawal of USD proceeds was placed on indefinite security review without human representative support.",
+          "company_response_to_consumer": "Closed with explanation",
+          "timely": "Yes",
+          "has_narrative": true
+        }
+      },
+      {
+        "_id": "8901239",
+        "_source": {
+          "complaint_id": "8901239",
+          "company": "Navient Solutions, LLC.",
+          "date_received": "2026-03-14T11:45:00Z",
+          "product": "Student loan",
+          "sub_product": "Federal student loan servicing",
+          "issue": "Dealing with your lender or servicer",
+          "sub_issue": "Received bad information about your loan",
+          "consumer_complaint_narrative": "Navient steered me into repetitive costly forbearances instead of enrolling me in income-driven repayment plans, adding thousands in capitalized interest.",
+          "company_response_to_consumer": "Closed with explanation",
+          "timely": "Yes",
+          "has_narrative": true
+        }
+      },
+      {
+        "_id": "8901240",
+        "_source": {
+          "complaint_id": "8901240",
+          "company": "Navient Solutions, LLC.",
+          "date_received": "2026-03-02T09:15:00Z",
+          "product": "Student loan",
+          "sub_product": "Private student loan",
+          "issue": "Problem with payment processing",
+          "sub_issue": "Payment allocated incorrectly",
+          "consumer_complaint_narrative": "Extra payments intended for principal reduction on highest interest rate loan was split evenly across all accounts despite explicit written payment instructions.",
+          "company_response_to_consumer": "Closed with monetary relief",
+          "timely": "Yes",
+          "has_narrative": true
+        }
+      }
+    ]
+  }
+}

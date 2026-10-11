@@ -1,0 +1,19 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "llama-3.3-70b-versatile",
+      "object": "model",
+      "created": 1733270400,
+      "owned_by": "meta",
+      "active": true
+    },
+    {
+      "id": "llama-3.1-8b-instant",
+      "object": "model",
+      "created": 1721779200,
+      "owned_by": "meta",
+      "active": true
+    }
+  ]
+}
