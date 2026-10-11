@@ -194,12 +194,45 @@ def get_company_evidence_graph(ticker: str):
 @router.get("/review-queue", response_model=List[ConsensusFlag])
 def get_review_queue():
     """Items with status 'needs_review' requiring human analyst confirmation."""
+    repo_items = graph_repo.get_review_queue()
+    if repo_items:
+        flags = []
+        for item in repo_items:
+            try:
+                flags.append(
+                    ConsensusFlag(
+                        item_id=item.get("id", "item_unknown"),
+                        company=item.get("company", "WFC"),
+                        source_url=item.get("source_url", "https://example.com"),
+                        date=item.get("date", datetime.now(timezone.utc)),
+                        risk_type=RiskType(item.get("risk_type", "compliance")),
+                        primary_severity=int(item.get("primary_severity", item.get("severity", 4))),
+                        final_severity=int(item.get("final_severity", item.get("severity", 4))),
+                        confidence=float(item.get("confidence", 0.9)),
+                        status=ConsensusStatus(item.get("status", "needs_review")),
+                        review_factor=float(item.get("review_factor", 0.5)),
+                        topics=json.loads(item["topics_json"]) if "topics_json" in item else item.get("topics", []),
+                        regulators=json.loads(item["regulators_json"]) if "regulators_json" in item else item.get("regulators", []),
+                        reason=item.get("reason", "Awaiting analyst verdict."),
+                        verifier_provider=item.get("verifier_provider"),
+                        verifier_severity=item.get("verifier_severity"),
+                        verifier_risk_type=RiskType(item["verifier_risk_type"]) if item.get("verifier_risk_type") else None,
+                        analyst_verdict=AnalystVerdict(item["analyst_verdict"]) if item.get("analyst_verdict") else None,
+                        is_simulated=item.get("is_simulated", False),
+                    )
+                )
+            except Exception as e:
+                logger.warning("Failed to deserialize review queue item: %s", e)
+        if flags:
+            return flags
     return list(_REVIEW_QUEUE.values())
 
 
 @router.post("/items/{id}/verdict", response_model=ConsensusFlag)
 def submit_verdict(id: str, request: VerdictRequest):
     """Analyst confirms or dismisses flagged item."""
+    graph_repo.update_verdict(id, request.verdict)
+
     if id not in _REVIEW_QUEUE:
         # Create a placeholder if item wasn't in memory
         _REVIEW_QUEUE[id] = ConsensusFlag(

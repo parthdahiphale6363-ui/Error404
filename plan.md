@@ -112,9 +112,26 @@
   - Topic Tags Spot-Check (20 items): 20/20 (100.0%) match rate.
   - Full backend pytest suite: 40/40 tests passing cleanly. Frontend build: 0 errors in 233ms.
 
-### P3 to P9 Status Tracker
-- **P3 Consensus + review lane**: Pending (Ready to implement)
-- **P4 Risk Index**: Pending
+### P3: Consensus + Review Lane
+- **Status**: PASSED
+- **Date**: 2026-10-11
+- **What was built**: BlindVerifier adapter (`backend/verify/verifier.py`) with strict interface isolation (receives only raw item data); consensus engine (`backend/verify/consensus.py`) implementing agree, needs_review, confirmed, dismissed, unflagged, min severity, and review factor weights (1.0 vs 0.5 vs 0.0); GraphRepo review queue persistence and verdict updating (`backend/db/graph_repo.py`); FastAPI endpoints `GET /review-queue` and `POST /items/{id}/verdict` (`backend/api.py`).
+- **Files & Modules**:
+  - `backend/verify/__init__.py`
+  - `backend/verify/verifier.py`
+  - `backend/verify/consensus.py`
+  - `backend/db/graph_repo.py` (`upsert_consensus`, `get_review_queue`, `update_verdict`)
+  - `backend/api.py` (`GET /review-queue`, `POST /items/{id}/verdict`)
+  - `tests/unit/test_consensus.py` (7 tests covering every consensus rule and blind isolation)
+  - `tests/contract/test_review_queue_api.py` (2 tests)
+  - `tests/golden/eval_consensus.py` and `tests/golden/test_consensus_gate.py` (1 test)
+- **Gate Result**: PASSED
+  - Unit tests: 7/7 tests passed covering every rule and proving zero primary output leakage.
+  - Evaluation: Mistral accuracy 100.0%, Consensus accuracy 100.0%, Agreement rate 80.0%, Needs Review queue 4 items.
+  - Complete backend pytest suite: 50/50 tests passing. Frontend build: 175ms with 0 errors.
+
+### P4 to P9 Status Tracker
+- **P4 Risk Index**: Pending (Ready to implement)
 - **P5 Graph Explain**: Pending
 - **P6 Dashboard**: Pending
 - **P7 Alerts with Resend**: Pending
@@ -291,6 +308,35 @@
   - `tests/contract/test_mistral_detection_gate.py`: 2 tests verifying strict schema parsing, confidence/severity bounds, and noise classification.
   - `tests/graph/test_graph_detection_persistence.py`: 1 test verifying graph node updates and `HAS_TOPIC` / `INVOLVES` relationship persistence.
 - **Rollback**: Revert `backend/detect/` and changes to `llm.py` and `graph_repo.py`.
+
+#### CR-005-PHASE-3-CONSENSUS-AND-REVIEW-LANE: Blind Verifier, Dual-LLM Consensus Rules & Review Lane Endpoints
+- **ID**: `CR-005-PHASE-3-CONSENSUS-AND-REVIEW-LANE`
+- **What**:
+  1. `backend/verify/verifier.py`: Blind verifier adapter executing second opinion through Gemini / Groq without receiving Mistral's output.
+  2. `backend/verify/consensus.py`: Implements consensus rules (agreed, needs_review, confirmed, dismissed, unflagged, min severity, review_factor 1.0 vs 0.5 vs 0.0).
+  3. `backend/db/graph_repo.py`: Add `get_review_queue()` and `update_verdict(item_id, verdict)` to persist consensus flags and verdicts.
+  4. `backend/api.py`: Wire `GET /review-queue` and `POST /items/{id}/verdict`.
+  5. Tests: `tests/unit/test_consensus.py`, `tests/contract/test_review_queue_api.py`, and `tests/golden/eval_consensus.py`.
+- **Why**: Satisfy Phase 3 requirements in brain.md Section 12. Eliminate false positives via Dual-LLM consensus while providing a robust analyst review lane.
+- **Files Touched**:
+  - `backend/verify/__init__.py`
+  - `backend/verify/verifier.py`
+  - `backend/verify/consensus.py`
+  - `backend/db/graph_repo.py`
+  - `backend/api.py`
+  - `tests/unit/test_consensus.py`
+  - `tests/contract/test_review_queue_api.py`
+  - `tests/golden/eval_consensus.py`
+  - `plan.md`
+- **Impact on Index / Graph / Tests**:
+  - High severity items are audited by a blind second model.
+  - Review queue items populate the frontend drawer.
+  - Test suite expands to cover all consensus rules and prove blind isolation.
+- **Test Plan**:
+  - `tests/unit/test_consensus.py`: 6 tests for all consensus rules + blind verifier input isolation.
+  - `tests/contract/test_review_queue_api.py`: 2 tests verifying review queue and verdict API.
+  - Run full `pytest` suite.
+- **Rollback**: Revert `backend/verify/` and route handlers in `backend/api.py`.
 
 ---
 

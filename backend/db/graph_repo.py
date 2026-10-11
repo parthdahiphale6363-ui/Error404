@@ -12,7 +12,7 @@ import os
 import time
 from typing import Any, Dict, List, Optional
 from neo4j import GraphDatabase, Driver
-from backend.schemas import Item, ScorePoint, AlertRecord
+from backend.schemas import Item, ScorePoint, AlertRecord, ConsensusFlag
 
 logger = logging.getLogger(__name__)
 
@@ -357,6 +357,112 @@ class GraphRepo:
         with driver.session() as session:
             res = session.run(query, ticker=ticker, limit=limit)
             return [dict(record["i"]) for record in res]
+
+    def upsert_consensus(self, flag: ConsensusFlag):
+        """Persist consensus flag attributes to Item node."""
+        driver = self.get_driver()
+        status_val = getattr(flag.status, "value", str(flag.status))
+        risk_type_val = getattr(flag.risk_type, "value", str(flag.risk_type))
+        verdict_val = getattr(flag.analyst_verdict, "value", str(flag.analyst_verdict)) if flag.analyst_verdict else None
+        verifier_rt_val = getattr(flag.verifier_risk_type, "value", str(flag.verifier_risk_type)) if flag.verifier_risk_type else None
+
+        if not driver:
+            if flag.item_id in self._in_memory_items:
+                self._in_memory_items[flag.item_id].update({
+                    "status": status_val,
+                    "primary_severity": flag.primary_severity,
+                    "final_severity": flag.final_severity,
+                    "severity": flag.final_severity,
+                    "risk_type": risk_type_val,
+                    "review_factor": flag.review_factor,
+                    "verifier_provider": flag.verifier_provider,
+                    "verifier_severity": flag.verifier_severity,
+                    "verifier_risk_type": verifier_rt_val,
+                    "analyst_verdict": verdict_val,
+                    "confidence": flag.confidence,
+                    "reason": flag.reason,
+                })
+            return
+
+        query = (
+            "MATCH (i:Item {id: $id}) "
+            "SET i.status = $status, "
+            "    i.primary_severity = $primary_severity, "
+            "    i.final_severity = $final_severity, "
+            "    i.severity = $final_severity, "
+            "    i.risk_type = $risk_type, "
+            "    i.review_factor = $review_factor, "
+            "    i.verifier_provider = $verifier_provider, "
+            "    i.verifier_severity = $verifier_severity, "
+            "    i.verifier_risk_type = $verifier_risk_type, "
+            "    i.analyst_verdict = $analyst_verdict, "
+            "    i.confidence = $confidence, "
+            "    i.reason = $reason"
+        )
+        with driver.session() as session:
+            session.run(
+                query,
+                id=flag.item_id,
+                status=status_val,
+                primary_severity=flag.primary_severity,
+                final_severity=flag.final_severity,
+                risk_type=risk_type_val,
+                review_factor=flag.review_factor,
+                verifier_provider=flag.verifier_provider,
+                verifier_severity=flag.verifier_severity,
+                verifier_risk_type=verifier_rt_val,
+                analyst_verdict=verdict_val,
+                confidence=flag.confidence,
+                reason=flag.reason,
+            )
+
+    def get_review_queue(self) -> List[Dict[str, Any]]:
+        """Retrieve items with status 'needs_review'."""
+        driver = self.get_driver()
+        if not driver:
+            return [
+                v for v in self._in_memory_items.values()
+                if v.get("status") == "needs_review"
+            ]
+
+        query = (
+            "MATCH (i:Item) "
+            "WHERE i.status = 'needs_review' "
+            "RETURN i ORDER BY i.date DESC"
+        )
+        with driver.session() as session:
+            res = session.run(query)
+            return [dict(record["i"]) for record in res]
+
+    def update_verdict(self, item_id: str, verdict: Any) -> Optional[Dict[str, Any]]:
+        """Update analyst verdict for an item in review queue."""
+        verdict_str = getattr(verdict, "value", str(verdict)).lower()
+        new_status = "confirmed" if verdict_str == "confirm" else "dismissed"
+        new_rf = 1.0 if verdict_str == "confirm" else 0.0
+
+        driver = self.get_driver()
+        if not driver:
+            if item_id in self._in_memory_items:
+                item = self._in_memory_items[item_id]
+                item.update({
+                    "status": new_status,
+                    "analyst_verdict": verdict_str,
+                    "review_factor": new_rf,
+                })
+                return item
+            return None
+
+        query = (
+            "MATCH (i:Item {id: $id}) "
+            "SET i.status = $status, "
+            "    i.analyst_verdict = $verdict, "
+            "    i.review_factor = $review_factor "
+            "RETURN i"
+        )
+        with driver.session() as session:
+            res = session.run(query, id=item_id, status=new_status, verdict=verdict_str, review_factor=new_rf)
+            rec = res.single()
+            return dict(rec["i"]) if rec else None
 
     def record_score_point(self, ticker: str, score_point: ScorePoint):
         """Append hourly ScorePoint node to Company."""
