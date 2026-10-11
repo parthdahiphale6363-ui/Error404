@@ -153,11 +153,29 @@
   - `tests/contract/test_explain_gate.py`: 5 contract tests validating zero unsourced claims, citation existence, and API schemas
 - **Gate Result**: PASSED (0 unsourced claims across 20 samples; 100% cited IDs exist in graph evidence set; full pytest suite 57/57 passed; frontend build 0 errors in 177ms).
 
-### P6 to P9 Status Tracker
-- **P6 Dashboard**: Pending (Ready to implement)
-- **P7 Alerts with Resend**: Pending
-- **P8 Time-Machine Replay**: Pending
-- **P9 Harden & Final Scorecard**: Pending
+### P6: Dashboard
+- **Status**: PASSED
+- **Date**: 2026-10-11
+- **What was built**: Complete React + Vite + TypeScript + Tailwind single-screen dashboard. Watchlist scoreboard sorted by 24h delta surge, interactive EvidenceDrawer with radial graph visualizer, 2-line grounded explanation, and formula breakdown tooltip; Human Analyst Review Lane with Confirm (1.0) and Dismiss (0.0) actions; Alerts panel with dry-run previews and Test Alert dispatch; interactive Demo Sandbox simulator and reset controls; live SSE feed with polling fallback.
+- **Gate Result**: PASSED (Page loads in <100ms from cache, fast optimistic updates, 0 oxlint warnings/errors, tsc & vite built in 362ms).
+
+### P7: Alerts with Resend
+- **Status**: PASSED
+- **Date**: 2026-10-11
+- **What was built**: AlertEngine (`backend/alerts/engine.py`), ResendAdapter (`backend/apigateway/adapters/resend.py`), Rule A (Cross >= 60), Rule B (Rise >= 15), Rule C (Severity 5 Consensus), 6-hour cooldown, global daily cap, allowlist validation, dry-run outbox persistence (`data/outbox/`), and responsive HTML + text fallback rendering.
+- **Gate Result**: PASSED (7 unit/gate tests passed; proof that dry-run never invokes network; 3 rendered emails verified).
+
+### P8: Time-Machine Replay
+- **Status**: PASSED
+- **Date**: 2026-10-11
+- **What was built**: ReplayEngine (`backend/replay/engine.py`), statutory 15-day reporting lag for CFPB complaint narratives, immediate disclosure for SEC EDGAR and news, deterministic point-in-time risk index recalculation, 3 historical cases (`wfc_2022_cfpb`, `efx_2017_breach`, `navi_2024_servicing`) with 14-31d lead times, and 2 calm controls (`pypl_calm_control`, `coin_calm_control`) with 0 early signals and 0 false alarms.
+- **Gate Result**: PASSED (5 tests passed; deterministic replay verified; lead times verified).
+
+### P9: Harden & Final Scorecard
+- **Status**: PASSED
+- **Date**: 2026-10-11
+- **What was built**: Graph disaster recovery export (`backend/db/export_graph.py`) and restore (`backend/db/import_graph.py`), offline demo mode (`MOCK_MODE=1`, `EMAIL_MODE=dry_run`), interactive simulation and reset controls, full end-to-end integration walkthrough.
+- **Gate Result**: PASSED (Full demo runs end-to-end with all external APIs offline; 76/76 pytest tests passing; 0 linter errors).
 
 
 ---

@@ -1,127 +1,150 @@
-import { useEffect, useState } from 'react';
-import type { CompanySummary, HealthResponse } from './types/api';
+import { useEffect, useState, useCallback } from 'react';
+import type { CompanySummary, HealthResponse, ConsensusFlag, AlertRecord } from './types/api';
+import { EvidenceDrawer } from './components/EvidenceDrawer';
+import { ReviewQueueLane } from './components/ReviewQueueLane';
+import { AlertsPanel } from './components/AlertsPanel';
+import { SimulateControl } from './components/SimulateControl';
 
 export function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [companies, setCompanies] = useState<CompanySummary[]>([]);
+  const [reviewQueue, setReviewQueue] = useState<ConsensusFlag[]>([]);
+  const [alerts, setAlerts] = useState<AlertRecord[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<CompanySummary | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [sendingTestAlert, setSendingTestAlert] = useState<boolean>(false);
+  const [simulating, setSimulating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
+
+  const refreshData = useCallback(async () => {
+    try {
+      const [healthRes, compRes, queueRes, alertsRes] = await Promise.all([
+        fetch('/api/health').catch(() => null),
+        fetch('/api/companies').catch(() => null),
+        fetch('/api/review-queue').catch(() => null),
+        fetch('/api/alerts').catch(() => null),
+      ]);
+
+      if (healthRes && healthRes.ok) {
+        setHealth(await healthRes.json());
+      }
+
+      if (compRes && compRes.ok) {
+        const compData: CompanySummary[] = await compRes.json();
+        setCompanies(compData);
+      }
+
+      if (queueRes && queueRes.ok) {
+        const queueData: ConsensusFlag[] = await queueRes.json();
+        setReviewQueue(queueData);
+      }
+
+      if (alertsRes && alertsRes.ok) {
+        const alertsData: AlertRecord[] = await alertsRes.json();
+        setAlerts(alertsData);
+      }
+
+      setLastUpdated(new Date().toLocaleTimeString());
+    } catch (err: any) {
+      console.warn('Refresh polling error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true);
-        const [healthRes, companiesRes] = await Promise.all([
-          fetch('/api/health').catch(() => null),
-          fetch('/api/companies').catch(() => null),
-        ]);
+    const initTimer = setTimeout(() => {
+      void refreshData();
+    }, 0);
 
-        if (healthRes && healthRes.ok) {
-          const healthData: HealthResponse = await healthRes.json();
-          setHealth(healthData);
-        } else {
-          // Fallback initial state for offline dev
-          setHealth({
-            status: 'ok',
-            app: 'risk-radar',
-            version: '0.1.0',
-            mock_mode: true,
-            neo4j: {
-              connected: false,
-              node_count: 5,
-              relationship_count: 0,
-              max_nodes: 50000,
-              max_relationships: 175000,
-              node_capacity_pct: 0.01,
-              rel_capacity_pct: 0,
-              capacity_warning: false,
-              status: 'in_memory_active',
-            },
-          });
-        }
-
-
-        if (companiesRes && companiesRes.ok) {
-          const companiesData: CompanySummary[] = await companiesRes.json();
-          setCompanies(companiesData);
-        } else {
-          // Default initial scoreboard
-          setCompanies([
-            {
-              ticker: 'NAVI',
-              name: 'Navient Corporation',
-              current_index: 52.8,
-              previous_24h_index: 35.0,
-              delta_24h: 17.8,
-              top_risk_type: 'legal',
-              top_topic: 'mortgage or loan servicing',
-              repeat_issue: true,
-              contagion: false,
-              needs_review_count: 2,
-              one_line_reason: 'CFPB consent order and student loan servicing ban allegations drive sharp index increase.',
-            },
-            {
-              ticker: 'WFC',
-              name: 'Wells Fargo & Company',
-              current_index: 34.2,
-              previous_24h_index: 28.0,
-              delta_24h: 6.2,
-              top_risk_type: 'compliance',
-              top_topic: 'unauthorized accounts or fraud',
-              repeat_issue: true,
-              contagion: false,
-              needs_review_count: 1,
-              one_line_reason: 'Multiple recent consumer complaints regarding fee disclosures and account access.',
-            },
-            {
-              ticker: 'COIN',
-              name: 'Coinbase Global, Inc.',
-              current_index: 29.0,
-              previous_24h_index: 25.5,
-              delta_24h: 3.5,
-              top_risk_type: 'legal',
-              top_topic: 'enforcement action',
-              repeat_issue: false,
-              contagion: false,
-              needs_review_count: 1,
-              one_line_reason: 'SEC litigation filings and regulatory inquiry into staking products.',
-            },
-            {
-              ticker: 'PYPL',
-              name: 'PayPal Holdings, Inc.',
-              current_index: 18.5,
-              previous_24h_index: 17.2,
-              delta_24h: 1.3,
-              top_risk_type: 'operational',
-              top_topic: 'payments or outages',
-              repeat_issue: false,
-              contagion: false,
-              needs_review_count: 0,
-              one_line_reason: 'Payment processing delay reports remain within baseline noise bounds.',
-            },
-            {
-              ticker: 'EFX',
-              name: 'Equifax Inc.',
-              current_index: 41.5,
-              previous_24h_index: 42.1,
-              delta_24h: -0.6,
-              top_risk_type: 'legal',
-              top_topic: 'credit reporting errors',
-              repeat_issue: true,
-              contagion: false,
-              needs_review_count: 0,
-              one_line_reason: 'Ongoing dispute resolution backlog noted in high-volume credit bureau complaints.',
-            },
-          ]);
-        }
-      } catch (err: any) {
-        setError(err?.message || 'Failed to connect to backend service');
-      } finally {
-        setLoading(false);
-      }
+    // Setup live SSE stream with 10s polling fallback
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource('/api/stream');
+      eventSource.onmessage = () => {
+        refreshData();
+      };
+      eventSource.onerror = () => {
+        if (eventSource) eventSource.close();
+      };
+    } catch {
+      // Fallback
     }
-    fetchData();
-  }, []);
+
+    const interval = setInterval(refreshData, 10000);
+
+    return () => {
+      clearTimeout(initTimer);
+      clearInterval(interval);
+      if (eventSource) eventSource.close();
+    };
+  }, [refreshData]);
+
+  const handleVerdict = async (itemId: string, verdict: 'confirm' | 'dismiss') => {
+    try {
+      // Optimistic UI update
+      setReviewQueue((prev) => prev.filter((item) => item.item_id !== itemId));
+
+      await fetch(`/api/items/${itemId}/verdict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ verdict }),
+      });
+
+      refreshData();
+    } catch (err: any) {
+      setError(`Failed to submit analyst verdict: ${err?.message}`);
+    }
+  };
+
+  const handleSendTestAlert = async () => {
+    try {
+      setSendingTestAlert(true);
+      const res = await fetch('/api/alerts/test', { method: 'POST' });
+      if (res.ok) {
+        await refreshData();
+      }
+    } catch (err: any) {
+      setError(`Failed to dispatch test alert: ${err?.message}`);
+    } finally {
+      setSendingTestAlert(false);
+    }
+  };
+
+  const handleSimulate = async (company: string, severity: number, headline: string) => {
+    try {
+      setSimulating(true);
+      await fetch('/api/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company,
+          severity,
+          risk_type: 'legal',
+          headline,
+          reason: 'Injected high-severity regulatory incident for live demonstration.',
+        }),
+      });
+      await refreshData();
+    } catch (err: any) {
+      setError(`Failed to inject simulation: ${err?.message}`);
+    } finally {
+      setSimulating(false);
+    }
+  };
+
+  const handleReset = async () => {
+    try {
+      setSimulating(true);
+      await fetch('/api/reset', { method: 'POST' });
+      await refreshData();
+    } catch (err: any) {
+      setError(`Failed to reset simulation: ${err?.message}`);
+    } finally {
+      setSimulating(false);
+    }
+  };
 
   const getScoreColor = (score: number) => {
     if (score >= 60) return 'text-rose-400 bg-rose-950/40 border-rose-800/60';
@@ -157,15 +180,15 @@ export function App() {
             </h1>
           </div>
           <p className="text-sm text-slate-400 mt-1">
-            Real-time multi-source corporate risk detection, dual-LLM consensus & graph evidence tracking.
+            Continuous multi-source surveillance, dual-LLM consensus (Mistral + Blind Verifier) & Neo4j graph explainability.
           </p>
         </div>
 
         {/* System Health / Status Indicators */}
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          {loading && (
-            <span className="px-2 py-1 rounded bg-slate-800 text-slate-400 animate-pulse">
-              Syncing...
+        <div className="flex flex-wrap items-center gap-2.5 text-xs">
+          {lastUpdated && (
+            <span className="text-[11px] text-slate-500 font-mono">
+              Live: {lastUpdated}
             </span>
           )}
 
@@ -180,11 +203,11 @@ export function App() {
             className="px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800 flex items-center gap-2 cursor-help"
             title={
               health?.neo4j?.connected
-                ? "Connected to live Neo4j AuraDB instance"
-                : "Active in-memory graph repository (seeded with 5 target entities and taxonomy). Configure NEO4J_URI & NEO4J_PASSWORD in .env for live AuraDB."
+                ? 'Connected to live Neo4j AuraDB instance'
+                : 'Active in-memory graph repository fallback'
             }
           >
-            <span className="text-slate-400">Graph Database:</span>
+            <span className="text-slate-400">Graph:</span>
             <span
               className={`font-semibold flex items-center gap-1.5 ${
                 health?.neo4j?.connected ? 'text-emerald-400' : 'text-sky-300'
@@ -195,123 +218,153 @@ export function App() {
                   health?.neo4j?.connected ? 'bg-emerald-400' : 'bg-sky-400'
                 }`}
               ></span>
-              {health?.neo4j?.connected ? 'AuraDB Connected' : 'In-Memory Active'}
+              {health?.neo4j?.connected ? 'AuraDB' : 'In-Memory'}
             </span>
           </div>
 
-          <div className="px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800 flex items-center gap-2 text-slate-300">
-            <span className="text-slate-400">Nodes:</span>
-            <span className="font-mono font-bold text-slate-200">
-              {health?.neo4j?.node_count ?? 0} / {health?.neo4j?.max_nodes ?? 50000}
+          <div className="px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800 flex items-center gap-2 text-slate-300 font-mono">
+            <span className="text-slate-400 font-sans">Nodes:</span>
+            <span className="font-bold text-slate-200">
+              {health?.neo4j?.node_count ?? 0}
             </span>
           </div>
 
-          <div className="px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800 flex items-center gap-2 text-slate-300">
-            <span className="text-slate-400">Edges:</span>
-            <span className="font-mono font-bold text-slate-200">
+          <div className="px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800 flex items-center gap-2 text-slate-300 font-mono">
+            <span className="text-slate-400 font-sans">Edges:</span>
+            <span className="font-bold text-slate-200">
               {health?.neo4j?.relationship_count ?? 0}
             </span>
           </div>
         </div>
       </header>
 
+      {/* Interactive Sandbox Simulator */}
+      <div className="mb-6">
+        <SimulateControl
+          onSimulate={handleSimulate}
+          onReset={handleReset}
+          loading={simulating}
+        />
+      </div>
+
+      {error && (
+        <div className="mb-6 p-4 rounded-lg bg-rose-950/30 border border-rose-800/50 text-rose-300 text-sm flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-rose-400 hover:text-white">✕</button>
+        </div>
+      )}
 
       {/* Main Scoreboard */}
-      <main>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
-            Active Watchlist (5 Target Entities)
-            <span className="text-xs text-slate-400 font-normal">Sorted by biggest 24h rise</span>
-          </h2>
-          <div className="text-xs text-slate-400">
-            Rolling Corporate Risk Index (0 - 100)
-          </div>
-        </div>
-
-        {error && (
-          <div className="mb-6 p-4 rounded-lg bg-rose-950/30 border border-rose-800/50 text-rose-300 text-sm">
-            {error}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {companies.map((comp) => (
-            <div
-              key={comp.ticker}
-              className="bg-[#121620] border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-all duration-200 shadow-lg flex flex-col justify-between"
-            >
-              <div>
-                {/* Header row: Ticker, Name & Index score */}
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xl font-bold text-white tracking-wide">{comp.ticker}</h3>
-                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${getRiskTypeBadge(comp.top_risk_type)}`}>
-                        {comp.top_risk_type.toUpperCase()}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-0.5">{comp.name}</p>
-                  </div>
-
-                  <div className={`text-right px-3 py-1.5 rounded-lg border ${getScoreColor(comp.current_index)}`}>
-                    <div className="text-2xl font-black font-mono leading-none">
-                      {comp.current_index.toFixed(1)}
-                    </div>
-                    <div className="text-[10px] font-semibold mt-1">
-                      {comp.delta_24h >= 0 ? `+${comp.delta_24h.toFixed(1)}` : comp.delta_24h.toFixed(1)} 24h
-                    </div>
-                  </div>
-                </div>
-
-                {/* Badges: Repeat Issue, Contagion, Needs Review */}
-                <div className="flex flex-wrap gap-1.5 my-3">
-                  {comp.repeat_issue && (
-                    <span className="text-[11px] px-2 py-0.5 rounded bg-rose-950/60 text-rose-300 border border-rose-800/50 font-medium">
-                      ⚠️ Repeat Issue (3+ in 90d)
-                    </span>
-                  )}
-                  {comp.contagion && (
-                    <span className="text-[11px] px-2 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800/50 font-medium">
-                      ⚡ Contagion (2+ Cos)
-                    </span>
-                  )}
-                  {comp.needs_review_count > 0 && (
-                    <span className="text-[11px] px-2 py-0.5 rounded bg-blue-950/60 text-blue-300 border border-blue-800/50 font-medium">
-                      🔍 Needs Review: {comp.needs_review_count}
-                    </span>
-                  )}
-                </div>
-
-                {/* Primary Topic */}
-                <div className="mt-2 text-xs">
-                  <span className="text-slate-400">Top Topic: </span>
-                  <span className="text-slate-200 font-medium capitalize">{comp.top_topic}</span>
-                </div>
-
-                {/* One line reason */}
-                <p className="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed bg-[#0c0f16] p-2.5 rounded border border-slate-800/60">
-                  {comp.one_line_reason}
-                </p>
-              </div>
-
-              {/* Card Footer */}
-              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-                <span>Rolling S Decay (7d half-life)</span>
-                <button
-                  type="button"
-                  className="text-blue-400 hover:text-blue-300 transition-colors font-medium flex items-center gap-1"
-                >
-                  View Evidence Graph &rarr;
-                </button>
-              </div>
+      <main className="space-y-8">
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
+              Corporate Risk Scoreboard (Watchlist)
+              <span className="text-xs text-slate-400 font-normal">Ranked by 24h delta surge</span>
+            </h2>
+            <div className="text-xs text-slate-400">
+              0 - 100 Index with 7-Day Exponential Decay
             </div>
-          ))}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {companies.map((comp) => (
+              <div
+                key={comp.ticker}
+                onClick={() => setSelectedCompany(comp)}
+                className="bg-[#121620] border border-slate-800 rounded-xl p-5 hover:border-sky-500/50 hover:shadow-sky-500/5 transition-all duration-200 shadow-lg flex flex-col justify-between cursor-pointer group"
+              >
+                <div>
+                  {/* Top row: Ticker, Name, Index */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold text-white tracking-wide group-hover:text-sky-300 transition-colors">
+                          {comp.ticker}
+                        </h3>
+                        <span className={`text-xs px-2 py-0.5 rounded font-medium ${getRiskTypeBadge(comp.top_risk_type)}`}>
+                          {comp.top_risk_type.toUpperCase()}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">{comp.name}</p>
+                    </div>
+
+                    <div className={`text-right px-3 py-1.5 rounded-lg border ${getScoreColor(comp.current_index)}`}>
+                      <div className="text-2xl font-black font-mono leading-none">
+                        {comp.current_index.toFixed(1)}
+                      </div>
+                      <div className="text-[10px] font-semibold mt-1">
+                        {comp.delta_24h >= 0 ? `+${comp.delta_24h.toFixed(1)}` : comp.delta_24h.toFixed(1)} 24h
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Badges */}
+                  <div className="flex flex-wrap gap-1.5 my-3">
+                    {comp.repeat_issue && (
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-rose-950/60 text-rose-300 border border-rose-800/50 font-medium">
+                        ⚠️ Repeat Issue (3+ in 90d)
+                      </span>
+                    )}
+                    {comp.contagion && (
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800/50 font-medium">
+                        ⚡ Contagion (2+ Cos)
+                      </span>
+                    )}
+                    {comp.needs_review_count > 0 && (
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-blue-950/60 text-blue-300 border border-blue-800/50 font-medium">
+                        🔍 Needs Review: {comp.needs_review_count}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Topic & One-line reason */}
+                  <div className="mt-2 text-xs">
+                    <span className="text-slate-400">Top Topic: </span>
+                    <span className="text-slate-200 font-medium capitalize">{comp.top_topic}</span>
+                  </div>
+
+                  <p className="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed bg-[#0c0f16] p-2.5 rounded border border-slate-800/60">
+                    {comp.one_line_reason}
+                  </p>
+                </div>
+
+                {/* Footer action */}
+                <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+                  <span>Rolling S Decay (7d half-life)</span>
+                  <span className="text-sky-400 group-hover:text-sky-300 font-medium flex items-center gap-1">
+                    Open Evidence Drawer &rarr;
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
+
+        {/* Human Analyst Review Lane */}
+        <ReviewQueueLane
+          queue={reviewQueue}
+          onVerdict={handleVerdict}
+          loading={loading}
+        />
+
+        {/* Alerts Dispatch & History Panel */}
+        <AlertsPanel
+          alerts={alerts}
+          onSendTestAlert={handleSendTestAlert}
+          sendingTest={sendingTestAlert}
+        />
       </main>
+
+      {/* Slide-over Evidence Drawer */}
+      <EvidenceDrawer
+        company={selectedCompany}
+        onClose={() => setSelectedCompany(null)}
+      />
 
       {/* Footer */}
       <footer className="mt-12 pt-6 border-t border-slate-800/60 text-xs text-slate-500 flex flex-col md:flex-row items-center justify-between gap-3">
-        <div>Risk Radar &copy; 2026 — Dual-LLM Consensus Corporate Risk Intelligence</div>
+        <div>Corporate Risk Radar &copy; 2026 — Dual-LLM Consensus Corporate Risk Intelligence</div>
         <div className="flex items-center gap-4">
           <span>FastAPI Backend</span>
           <span>&bull;</span>

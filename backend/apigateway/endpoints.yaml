@@ -133,3 +133,17 @@ endpoints:
       calls: 30
       period_seconds: 60
     fixture_path: "data/fixtures/mistral_models.json"
+
+  resend_emails:
+    name: "resend_emails"
+    url: "https://api.resend.com/emails"
+    method: "POST"
+    params: []
+    auth:
+      type: "bearer"
+      env_var: "RESEND_API_KEY"
+    rate_limit:
+      calls: 2
+      period_seconds: 1
+    fixture_path: "data/fixtures/resend_emails.json"
+

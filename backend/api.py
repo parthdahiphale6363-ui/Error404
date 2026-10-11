@@ -13,8 +13,10 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from backend.alerts.engine import alert_engine
 from backend.db.graph_repo import graph_repo
 from backend.explain.engine import ExplainEngine
+from backend.replay.engine import replay_engine, ReplayCase
 from backend.schemas import (
     AnalystVerdict,
     AlertRecord,
@@ -253,20 +255,55 @@ def get_alerts():
 @router.post("/alerts/test")
 def trigger_test_alert():
     """Send one test alert to verify delivery."""
+    key = f"test_alert_{int(datetime.now(timezone.utc).timestamp())}"
+    content = alert_engine.build_email_content(
+        company="WFC",
+        index=62.5,
+        delta=16.5,
+        topic="unauthorized accounts or fraud",
+        rule_name="Manual Verification Test",
+        reason="Analyst triggered test alert to verify email dispatch pipeline and HTML rendering.",
+        evidence_items=[{
+            "risk_type": "compliance",
+            "severity": 4,
+            "title": "Unauthorized Checking Account Fee Charges",
+            "url": "https://consumerfinance.gov/data-research/consumer-complaints/",
+        }],
+        badges=["Test Alert", "Manual Trigger"],
+    )
     test_record = AlertRecord(
-        key=f"test_alert_{int(datetime.now(timezone.utc).timestamp())}",
+        key=key,
         ts=datetime.now(timezone.utc),
         company="WFC",
         rule="Rule A (Manual Test)",
-        subject="[Risk Radar] [TEST] WFC risk 62.5 (+16.5 in 24h): unauthorized accounts",
-        body_html="<p>Test alert preview body for analyst evaluation.</p>",
-        body_text="Test alert preview body for analyst evaluation.",
-        recipients=["analyst@example.com"],
-        status="sent" if os.getenv("EMAIL_MODE", "dry_run") == "live" else "dry_run_saved",
+        subject=content["subject"],
+        body_html=content["body_html"],
+        body_text=content["body_text"],
+        recipients=alert_engine.adapter.get_allowlist(),
+        status="pending",
         is_simulated=False,
     )
+    res = alert_engine.dispatch_alert(test_record)
     _ALERTS_LOG.append(test_record)
-    return {"status": "ok", "message": "Test alert registered", "record": test_record}
+    return {"status": "ok", "message": "Test alert dispatched", "record": test_record, "dispatch": res}
+
+
+@router.get("/replay", response_model=List[str])
+def list_replay_cases():
+    """List benchmark historical cases and calm controls."""
+    return [
+        "wfc_2022_cfpb",
+        "efx_2017_breach",
+        "navi_2024_servicing",
+        "pypl_calm_control",
+        "coin_calm_control",
+    ]
+
+
+@router.get("/replay/{case_id}", response_model=ReplayCase)
+def get_replay_case(case_id: str):
+    """Retrieve full point-in-time time-machine replay for a case."""
+    return replay_engine.get_benchmark_case(case_id)
 
 
 @router.get("/metrics", response_model=MetricsResponse)
