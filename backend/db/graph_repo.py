@@ -38,7 +38,38 @@ class GraphRepo:
         self.password = password or os.getenv("NEO4J_PASSWORD")
         self._driver: Optional[Driver] = None
         self._in_memory_items: Dict[str, Dict[str, Any]] = {}
+        self._in_memory_companies: Dict[str, Dict[str, Any]] = {}
+        self._in_memory_topics: Dict[str, Dict[str, Any]] = {}
+        self._in_memory_regulators: Dict[str, Dict[str, Any]] = {}
+        self._in_memory_relationships: List[Dict[str, Any]] = []
         self._in_memory_alerts: List[Dict[str, Any]] = []
+        self._seed_in_memory_entities()
+
+    def _seed_in_memory_entities(self):
+        """Seed default 5 target companies and benchmark taxonomy into in-memory store."""
+        initial_companies = [
+            ("WFC", "Wells Fargo & Company"),
+            ("EFX", "Equifax Inc."),
+            ("PYPL", "PayPal Holdings, Inc."),
+            ("COIN", "Coinbase Global, Inc."),
+            ("NAVI", "Navient Corporation"),
+        ]
+        for ticker, name in initial_companies:
+            self._in_memory_companies[ticker] = {"ticker": ticker, "name": name}
+
+        initial_topics = [
+            "unauthorized accounts or fraud",
+            "credit reporting errors",
+            "enforcement action",
+            "payments or outages",
+            "mortgage or loan servicing",
+        ]
+        for topic in initial_topics:
+            self._in_memory_topics[topic] = {"name": topic}
+
+        initial_regulators = ["CFPB", "SEC", "OCC", "DOJ", "FTC"]
+        for reg in initial_regulators:
+            self._in_memory_regulators[reg] = {"name": reg}
 
     def get_driver(self) -> Optional[Driver]:
         """Lazy-initialize and return the Neo4j driver if credentials exist."""
@@ -54,6 +85,7 @@ class GraphRepo:
             except Exception as e:
                 logger.warning(f"Neo4j connection failed: {e}. Operating in fallback mode.")
                 self._driver = None
+            return None
         return None
 
     def close(self):
@@ -66,17 +98,25 @@ class GraphRepo:
         """Check Neo4j connectivity, node/relationship counts, and capacity warning."""
         driver = self.get_driver()
         if not driver:
+            node_cnt = (
+                len(self._in_memory_companies)
+                + len(self._in_memory_items)
+                + len(self._in_memory_topics)
+                + len(self._in_memory_regulators)
+            )
+            rel_cnt = len(self._in_memory_relationships)
             return {
                 "connected": False,
-                "node_count": len(self._in_memory_items),
-                "relationship_count": 0,
+                "node_count": node_cnt,
+                "relationship_count": rel_cnt,
                 "max_nodes": MAX_NODES,
                 "max_relationships": MAX_RELATIONSHIPS,
-                "node_capacity_pct": round(len(self._in_memory_items) / MAX_NODES * 100, 2),
-                "rel_capacity_pct": 0.0,
+                "node_capacity_pct": round(node_cnt / MAX_NODES * 100, 2),
+                "rel_capacity_pct": round(rel_cnt / MAX_RELATIONSHIPS * 100, 2),
                 "capacity_warning": False,
                 "status": "offline_fallback",
             }
+
 
         try:
             with driver.session() as session:
@@ -147,6 +187,7 @@ class GraphRepo:
         """Upsert Company node with ticker and name."""
         driver = self.get_driver()
         if not driver:
+            self._in_memory_companies[ticker] = {"ticker": ticker, "name": name}
             return
         query = (
             "MERGE (c:Company {ticker: $ticker}) "
@@ -161,7 +202,32 @@ class GraphRepo:
         driver = self.get_driver()
         if not driver:
             self._in_memory_items[item.id] = item.model_dump()
+            # Link Item -> Company (ABOUT)
+            if item.company not in self._in_memory_companies:
+                self._in_memory_companies[item.company] = {"ticker": item.company, "name": item.company}
+            self._in_memory_relationships.append({
+                "source": item.id,
+                "target": item.company,
+                "type": "ABOUT",
+            })
+            if topics:
+                for t in topics:
+                    self._in_memory_topics[t] = {"name": t}
+                    self._in_memory_relationships.append({
+                        "source": item.id,
+                        "target": t,
+                        "type": "HAS_TOPIC",
+                    })
+            if regulators:
+                for r in regulators:
+                    self._in_memory_regulators[r] = {"name": r}
+                    self._in_memory_relationships.append({
+                        "source": item.id,
+                        "target": r,
+                        "type": "INVOLVES",
+                    })
             return
+
 
         # Prepare parameters; store embedding or lists as primitive arrays or JSON strings
         params = {
@@ -263,12 +329,21 @@ class GraphRepo:
         """Remove all simulated items (`is_simulated=true`) and associated relationships."""
         driver = self.get_driver()
         if not driver:
+            sim_ids = {
+                k for k, v in self._in_memory_items.items()
+                if v.get("is_simulated", False)
+            }
             initial = len(self._in_memory_items)
             self._in_memory_items = {
                 k: v for k, v in self._in_memory_items.items()
                 if not v.get("is_simulated", False)
             }
+            self._in_memory_relationships = [
+                r for r in self._in_memory_relationships
+                if r.get("source") not in sim_ids and r.get("target") not in sim_ids
+            ]
             return initial - len(self._in_memory_items)
+
 
         query = (
             "MATCH (i:Item {is_simulated: true}) "

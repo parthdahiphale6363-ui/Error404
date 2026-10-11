@@ -48,3 +48,32 @@ def test_upsert_and_reset_simulated():
     # Reset simulated items
     removed = repo.reset_simulated_items()
     assert removed >= 0
+
+
+def test_graph_repo_seeds_entities_in_fallback():
+    """Verify fallback mode seeds 5 target companies and tracks relationships."""
+    repo = GraphRepo()
+    health = repo.check_health()
+    # In fallback mode, entities must be seeded (5 companies + taxonomy >= 5)
+    assert health["node_count"] >= 5
+    assert health["relationship_count"] >= 0
+    assert "in_memory" in health["status"] or health["status"] == "offline_fallback"
+
+    # Upserting a company and an item increments counts
+    repo.upsert_company("TEST_CO", "Test Company")
+    test_item = Item(
+        id="item_fallback_1",
+        company="TEST_CO",
+        source=SourceType.FINNHUB,
+        source_url="https://test.com/news/1",
+        title="Fallback item",
+        text="Sample fallback item text",
+        published_at=datetime.now(timezone.utc),
+        is_simulated=False,
+        content_hash="hash_fallback_1",
+    )
+    repo.upsert_item(test_item, topics=["payments or outages"], regulators=["CFPB"])
+    new_health = repo.check_health()
+    assert new_health["node_count"] > health["node_count"]
+    assert new_health["relationship_count"] >= 3  # ABOUT + HAS_TOPIC + INVOLVES
+

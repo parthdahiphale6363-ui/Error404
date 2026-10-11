@@ -11,22 +11,36 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
+import webbrowser
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = ROOT_DIR / "frontend"
 
 
+def auto_open_browser():
+    """Wait 1.5s for servers to initialize, then launch dashboard in browser."""
+    time.sleep(1.5)
+    try:
+        webbrowser.open("http://localhost:3000")
+    except Exception:
+        pass
+
+
 def main():
-    print("=" * 65)
-    print("  Corporate Risk Radar (Fintech PS 01) - Single Runner")
-    print("=" * 65)
-    print("  [Backend]  Starting FastAPI on http://localhost:8000...")
-    print("  [Frontend] Starting Vite on    http://localhost:3000...")
-    print("  [Docs]     Swagger API docs on http://localhost:8000/docs")
-    print("=" * 65)
-    print("  Press Ctrl+C to stop all services.\n")
+    print("=" * 68)
+    print("  🚀 Corporate Risk Radar (Fintech PS 01) - Single Runner")
+    print("=" * 68)
+    print("  ★ Live Dashboard (UI):    http://localhost:3000   (opening in browser...)")
+    print("  ★ FastAPI Backend API:    http://localhost:8000   (redirects to UI)")
+    print("  ★ Swagger API Docs:       http://localhost:8000/docs")
+    print("=" * 68)
+    print("  Press Ctrl+C at any time to stop all services.\n")
+
+    # Launch browser automatically
+    threading.Thread(target=auto_open_browser, daemon=True).start()
 
     # Start FastAPI backend process
     backend_cmd = [
@@ -46,13 +60,13 @@ def main():
     )
 
     # Start Vite frontend dev server
-    # Use shell=True on Windows for npm execution
     npm_cmd = "npm run dev"
     frontend_proc = subprocess.Popen(
         npm_cmd,
         cwd=FRONTEND_DIR,
         shell=True,
     )
+
 
     def shutdown(signum=None, frame=None):
         print("\n\nStopping Corporate Risk Radar services...")

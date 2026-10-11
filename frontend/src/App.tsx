@@ -28,17 +28,18 @@ export function App() {
             mock_mode: true,
             neo4j: {
               connected: false,
-              node_count: 0,
+              node_count: 5,
               relationship_count: 0,
               max_nodes: 50000,
               max_relationships: 175000,
-              node_capacity_pct: 0,
+              node_capacity_pct: 0.01,
               rel_capacity_pct: 0,
               capacity_warning: false,
-              status: 'offline_fallback',
+              status: 'in_memory_active',
             },
           });
         }
+
 
         if (companiesRes && companiesRes.ok) {
           const companiesData: CompanySummary[] = await companiesRes.json();
@@ -175,19 +176,26 @@ export function App() {
             </span>
           )}
 
-          <div className="px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800 flex items-center gap-2">
-            <span className="text-slate-400">Neo4j Status:</span>
+          <div
+            className="px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800 flex items-center gap-2 cursor-help"
+            title={
+              health?.neo4j?.connected
+                ? "Connected to live Neo4j AuraDB instance"
+                : "Active in-memory graph repository (seeded with 5 target entities and taxonomy). Configure NEO4J_URI & NEO4J_PASSWORD in .env for live AuraDB."
+            }
+          >
+            <span className="text-slate-400">Graph Database:</span>
             <span
-              className={`font-semibold flex items-center gap-1 ${
-                health?.neo4j?.connected ? 'text-emerald-400' : 'text-slate-300'
+              className={`font-semibold flex items-center gap-1.5 ${
+                health?.neo4j?.connected ? 'text-emerald-400' : 'text-sky-300'
               }`}
             >
               <span
                 className={`h-2 w-2 rounded-full ${
-                  health?.neo4j?.connected ? 'bg-emerald-400' : 'bg-slate-500'
+                  health?.neo4j?.connected ? 'bg-emerald-400' : 'bg-sky-400'
                 }`}
               ></span>
-              {health?.neo4j?.status || 'Active'}
+              {health?.neo4j?.connected ? 'AuraDB Connected' : 'In-Memory Active'}
             </span>
           </div>
 
@@ -197,8 +205,16 @@ export function App() {
               {health?.neo4j?.node_count ?? 0} / {health?.neo4j?.max_nodes ?? 50000}
             </span>
           </div>
+
+          <div className="px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800 flex items-center gap-2 text-slate-300">
+            <span className="text-slate-400">Edges:</span>
+            <span className="font-mono font-bold text-slate-200">
+              {health?.neo4j?.relationship_count ?? 0}
+            </span>
+          </div>
         </div>
       </header>
+
 
       {/* Main Scoreboard */}
       <main>

@@ -28,3 +28,17 @@ def test_health_endpoint():
     assert neo4j_data["max_relationships"] == 175000
     assert "capacity_warning" in neo4j_data
     assert isinstance(neo4j_data["capacity_warning"], bool)
+
+
+def test_root_redirects_to_frontend():
+    """Verify visiting root / on port 8000 redirects to frontend UI on port 3000."""
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers.get("location") == "http://localhost:3000"
+
+
+def test_favicon_returns_no_content():
+    """Verify /favicon.ico returns 204 No Content without 404 error."""
+    response = client.get("/favicon.ico")
+    assert response.status_code == 204
+

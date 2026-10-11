@@ -7,7 +7,8 @@ Strict architectural guard:
 """
 
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from backend.api import router as api_router
 
@@ -26,8 +27,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.get("/", include_in_schema=False)
+def root():
+    """Redirect requests to root / on port 8000 directly to the dashboard UI on port 3000."""
+    return RedirectResponse(url="http://localhost:3000", status_code=307)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """Return 204 No Content for browser favicon requests to avoid 404 logs."""
+    return Response(status_code=204)
+
+
 # Mount API Router containing all contract endpoints
 app.include_router(api_router)
+
 
 
 if __name__ == "__main__":

@@ -214,6 +214,35 @@
 - **Rollback**:
   - Revert changes to `backend/apigateway/adapters/cfpb.py` and `backend/apigateway/adapters/llm.py` via git checkout.
 
+#### CR-003-ROOT-REDIRECT-AND-GRAPH-FALLBACK-SEED: FastAPI Root Redirect, Favicon Handler, and Graph Fallback Entity Seeding
+- **ID**: `CR-003-ROOT-REDIRECT-AND-GRAPH-FALLBACK-SEED`
+- **What**:
+  1. `backend/main.py`: Add `@app.get("/")` returning HTTP 307 Redirect to `http://localhost:3000` (frontend UI) and `@app.get("/favicon.ico")` returning HTTP 204 No Content.
+  2. `run.py`: Auto-open `http://localhost:3000` in user's browser after 1.5s delay via `webbrowser.open`, and print clear console pointers directing the user to port 3000.
+  3. `backend/db/graph_repo.py`: In offline fallback mode, track in-memory companies, topics, regulators, and relationships. Seed the 5 target companies (`WFC`, `EFX`, `PYPL`, `COIN`, `NAVI`) and default taxonomy on init so initial `node_count` accurately reflects entities ($\ge 5$) instead of 0.
+  4. `frontend/src/App.tsx`: Display status badge clearly differentiating between live Neo4j Aura connection and active in-memory graph fallback.
+- **Why**:
+  - When users launch `.\run.bat`, they navigated to `http://localhost:8000` (FastAPI backend port) instead of port 3000, receiving `{"detail":"Not Found"}` and console 404 errors for `/` and `/favicon.ico`.
+  - When running without live Neo4j Aura credentials configured in `.env`, `graph_repo.py` reported 0 nodes because companies and topics were not stored in memory in fallback mode.
+- **Files Touched**:
+  - `backend/main.py`
+  - `backend/db/graph_repo.py`
+  - `run.py`
+  - `frontend/src/App.tsx`
+  - `tests/e2e/test_health.py`
+  - `tests/graph/test_graph_repo.py`
+  - `plan.md`
+- **Impact on Index / Graph / Tests**:
+  - Directs browser traffic to the dashboard at `http://localhost:3000`.
+  - In-memory graph correctly counts and maintains nodes and relationships.
+  - Zero breaking changes to existing API contract.
+- **Test Plan**:
+  - Add `test_root_redirects_to_frontend` and `test_favicon_returns_no_content` in `tests/e2e/test_health.py`.
+  - Add `test_graph_repo_seeds_entities_in_fallback` in `tests/graph/test_graph_repo.py`.
+  - Run full test suite `pytest`.
+- **Rollback**:
+  - Revert changes via git.
+
 ---
 
 ## g. Runbook

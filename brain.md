@@ -249,6 +249,7 @@ Defined in `backend/schemas.py`:
 - **2026-10-11**: Frontend scaffolded with Vite 8.3.4, React 19.2.8, TypeScript 6.0.2, Tailwind CSS 4.3.3. `tsc -b && vite build` and `oxlint` pass with 0 errors.
 - **2026-10-11**: P0 Gate verified: 27/27 backend tests passing (Pytest), `/health` reports Neo4j connectivity & capacity metrics (50k node / 175k rel budget), `migrate.py` constraint creation verified.
 - **2026-10-11**: P1 Gate verified: 20 random items match source contracts; 0 duplicates added on re-run; CFPB complaints strictly filtered for non-empty consumer narratives; custom User-Agent with CONTACT_EMAIL sent to CFPB and EDGAR; IngestionScheduler configured with 60s (Finnhub) and 900s (CFPB, EDGAR); Item nodes and ABOUT edges persisted to Neo4j graph repo; capacity budget of 1,200 Item nodes/company enforced. 29/29 tests passing.
+- **2026-10-11**: Root route redirect (`GET /` -> `http://localhost:3000`), `/favicon.ico` 204 handler, and in-memory graph repository entity seeding verified. 32/32 tests passing.
 
 ---
 
@@ -271,6 +272,8 @@ Defined in `backend/schemas.py`:
 - **2026-10-11 [DEC-010] User Labeling Workflow State**: Evaluation paused until 40 items labeled.
 - **2026-10-11 [DEC-011] Neo4j AuraDB Free Graph Architecture**: Knowledge graph with capacity budget (1,200 items/company, 30 days scores, 500 alerts). All Cypher strictly isolated to `backend/db/graph_repo.py`.
 - **2026-10-11 [DEC-012] Dual-LLM Consensus Detector**: Mistral primary + blind verifier (Gemini/Groq) for severity $\ge 3$ with review factors (1.0 agree, 0.5 needs_review, 0 dismissed).
+- **2026-10-11 [DEC-013] Root Redirect & In-Memory Graph Fallback Seeding**: `GET /` on port 8000 redirects to Vite UI on port 3000 to eliminate 404 errors; `/favicon.ico` returns 204. In-memory graph repo seeds 5 target companies and benchmark taxonomy to maintain non-zero node and relationship counters when live Aura is unconfigured.
+
 
 ---
 
