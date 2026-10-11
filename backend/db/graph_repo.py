@@ -9,6 +9,7 @@ are serialized as JSON strings.
 import json
 import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
 from neo4j import GraphDatabase, Driver
 from backend.schemas import Item, ScorePoint, AlertRecord
@@ -37,6 +38,7 @@ class GraphRepo:
         self.user = user or os.getenv("NEO4J_USER")
         self.password = password or os.getenv("NEO4J_PASSWORD")
         self._driver: Optional[Driver] = None
+        self._last_conn_failure: float = 0.0
         self._in_memory_items: Dict[str, Dict[str, Any]] = {}
         self._in_memory_companies: Dict[str, Dict[str, Any]] = {}
         self._in_memory_topics: Dict[str, Dict[str, Any]] = {}
@@ -44,6 +46,7 @@ class GraphRepo:
         self._in_memory_relationships: List[Dict[str, Any]] = []
         self._in_memory_alerts: List[Dict[str, Any]] = []
         self._seed_in_memory_entities()
+
 
     def _seed_in_memory_entities(self):
         """Seed default 5 target companies and benchmark taxonomy into in-memory store."""
@@ -75,18 +78,26 @@ class GraphRepo:
         """Lazy-initialize and return the Neo4j driver if credentials exist."""
         if self._driver is not None:
             return self._driver
+        now = time.time()
+        # Cooldown failure retries to prevent blocking HTTP requests on unreachable hosts
+        if now - self._last_conn_failure < 30.0:
+            return None
         if self.uri and self.user and self.password:
             try:
                 self._driver = GraphDatabase.driver(
-                    self.uri, auth=(self.user, self.password)
+                    self.uri,
+                    auth=(self.user, self.password),
+                    connection_timeout=2.0,
                 )
                 self._driver.verify_connectivity()
                 return self._driver
             except Exception as e:
                 logger.warning(f"Neo4j connection failed: {e}. Operating in fallback mode.")
                 self._driver = None
+                self._last_conn_failure = now
             return None
         return None
+
 
     def close(self):
         """Close Neo4j driver connection."""
