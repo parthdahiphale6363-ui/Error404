@@ -143,3 +143,91 @@ def test_scoring_determinism():
     assert score1.z_score == score2.z_score
     assert score1.complaint_spike_bonus == score2.complaint_spike_bonus
     assert len(score1.top_contributing_items) == len(score2.top_contributing_items)
+
+
+def test_scoring_review_factor_weights():
+    """Verify review_factor weighting: 1.0 (agreed), 0.5 (needs_review), 0.0 (dismissed)."""
+    now = datetime.now(timezone.utc)
+    from backend.schemas import ConsensusFlag, ConsensusStatus
+
+    # Severity 5 Legal at age 0: raw = 5 * 1.0 = 5.0
+    item_agreed = ConsensusFlag(
+        item_id="item_agreed",
+        company="WFC",
+        source_url="https://example.com/agreed",
+        date=now,
+        risk_type=RiskType.LEGAL,
+        primary_severity=5,
+        final_severity=5,
+        confidence=0.95,
+        status=ConsensusStatus.AGREED,
+        review_factor=1.0,
+        topics=["litigation or class action"],
+        regulators=["DOJ"],
+        reason="Agreed legal risk.",
+    )
+    # Severity 5 Legal at age 0 with review_factor 0.5: raw = 5 * 1.0 * 0.5 = 2.5
+    item_review = ConsensusFlag(
+        item_id="item_review",
+        company="WFC",
+        source_url="https://example.com/review",
+        date=now,
+        risk_type=RiskType.LEGAL,
+        primary_severity=5,
+        final_severity=5,
+        confidence=0.85,
+        status=ConsensusStatus.NEEDS_REVIEW,
+        review_factor=0.5,
+        topics=["litigation or class action"],
+        regulators=["SEC"],
+        reason="Needs review legal risk.",
+    )
+    # Severity 5 Legal at age 0 with review_factor 0.0: raw = 0.0
+    item_dismissed = ConsensusFlag(
+        item_id="item_dismissed",
+        company="WFC",
+        source_url="https://example.com/dismissed",
+        date=now,
+        risk_type=RiskType.LEGAL,
+        primary_severity=5,
+        final_severity=5,
+        confidence=0.85,
+        status=ConsensusStatus.DISMISSED,
+        review_factor=0.0,
+        topics=["litigation or class action"],
+        regulators=[],
+        reason="Dismissed risk.",
+    )
+
+    s_agreed = score_company("WFC", as_of=now, flags=[item_agreed])
+    assert s_agreed.raw_s == pytest.approx(5.0, rel=1e-3)
+
+    s_review = score_company("WFC", as_of=now, flags=[item_review])
+    assert s_review.raw_s == pytest.approx(2.5, rel=1e-3)
+
+    s_dismissed = score_company("WFC", as_of=now, flags=[item_dismissed])
+    assert s_dismissed.raw_s == 0.0
+    assert s_dismissed.index_score == 0.0
+
+
+def test_score_pure_function():
+    """Verify score() pure function matches score_company exactly."""
+    now = datetime.now(timezone.utc)
+    from backend.scoring.index import score
+
+    flag = Flag(
+        item_id="item_test",
+        company="COIN",
+        source_url="https://example.com/sec",
+        date=now,
+        risk_type=RiskType.LEGAL,
+        severity=4,
+        confidence=0.9,
+        reason="SEC lawsuit.",
+    )
+    sp = score([flag], as_of=now, company="COIN")
+    assert sp.company == "COIN"
+    assert sp.raw_s == pytest.approx(4.0, rel=1e-3)
+    assert 0.0 < sp.index_score <= 100.0
+    assert len(sp.top_contributing_items) == 1
+

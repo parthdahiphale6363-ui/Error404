@@ -25,9 +25,10 @@ class ItemContribution(BaseModel):
     item_id: str = Field(..., description="ID of contributing item")
     risk_type: RiskType = Field(..., description="Risk type")
     severity: int = Field(..., ge=0, le=5, description="Raw severity")
+    review_factor: float = Field(default=1.0, ge=0.0, le=1.0, description="Consensus review factor")
     age_days: float = Field(..., ge=0.0, description="Item age in days at as-of time")
     weight: float = Field(..., ge=0.0, le=1.0, description="Category type weight")
-    decayed_score: float = Field(..., ge=0.0, description="severity * weight * 0.5^(age_days/7)")
+    decayed_score: float = Field(..., ge=0.0, description="severity * weight * review_factor * 0.5^(age_days/7)")
 
 
 class ScorePoint(BaseModel):

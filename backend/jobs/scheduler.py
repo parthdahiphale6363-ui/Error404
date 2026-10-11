@@ -24,6 +24,7 @@ class IngestionScheduler:
         "finnhub": 60,     # 60 seconds
         "cfpb": 900,       # 15 minutes (900s)
         "edgar": 900,      # 15 minutes (900s)
+        "scoring": 3600,   # 1 hour (3600s)
     }
 
     def __init__(
@@ -37,6 +38,7 @@ class IngestionScheduler:
             "finnhub": 0.0,
             "cfpb": 0.0,
             "edgar": 0.0,
+            "scoring": 0.0,
         }
         self._running = False
         self._thread: Optional[threading.Thread] = None
@@ -46,7 +48,21 @@ class IngestionScheduler:
         return dict(self.intervals)
 
     def run_provider_ingest(self, provider: str) -> int:
-        """Run single ingestion pass for a provider across all companies."""
+        """Run single ingestion pass or scoring computation across all companies."""
+        if provider == "scoring":
+            from backend.scoring.index import score
+            from backend.db.graph_repo import graph_repo
+            as_of = datetime.now(timezone.utc)
+            total_points = 0
+            for company in COMPANY_METADATA.keys():
+                items = graph_repo.get_items_for_company(company, limit=200)
+                sp = score(items, as_of=as_of, company=company)
+                graph_repo.record_score_point(company, sp)
+                total_points += 1
+            self.last_run[provider] = time.time()
+            logger.info("Hourly scoring completed: %d company ScorePoints recorded", total_points)
+            return total_points
+
         total_new = 0
         for company in COMPANY_METADATA.keys():
             if provider == "finnhub":

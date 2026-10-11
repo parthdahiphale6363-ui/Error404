@@ -11,7 +11,7 @@ Formula:
 
 import math
 from datetime import datetime
-from typing import Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 import numpy as np
 
 from backend.models.contracts import Flag, ItemContribution, RiskType, ScorePoint
@@ -100,17 +100,21 @@ def score_company(
 
         age_days = age_seconds / 86400.0
         weight = TYPE_WEIGHTS.get(flag.risk_type, 0.0)
+        review_factor = float(getattr(flag, "review_factor", 1.0))
 
-        if weight == 0.0 or flag.severity == 0 or flag.risk_type == RiskType.NOISE:
+        sev = int(getattr(flag, "final_severity", getattr(flag, "severity", 0)))
+
+        if weight == 0.0 or sev == 0 or flag.risk_type == RiskType.NOISE or review_factor == 0.0:
             decayed = 0.0
         else:
             decay = calculate_decay(age_days=age_days, half_life_days=7.0)
-            decayed = float(flag.severity * weight * decay)
+            decayed = float(sev * weight * review_factor * decay)
 
         contribution = ItemContribution(
             item_id=flag.item_id,
             risk_type=flag.risk_type,
-            severity=flag.severity,
+            severity=sev,
+            review_factor=round(review_factor, 2),
             age_days=round(age_days, 4),
             weight=weight,
             decayed_score=round(decayed, 4),
@@ -141,4 +145,29 @@ def score_company(
         complaint_spike_bonus=round(spike_bonus, 4),
         top_contributing_items=top_items,
         is_simulated=has_simulated,
+    )
+
+
+def score(
+    items: Sequence[Any],
+    as_of: datetime,
+    company: Optional[str] = None,
+    recent_7d_complaints: float = 0.0,
+    baseline_90d_complaints: Optional[Sequence[float]] = None,
+    top_n: int = 10,
+) -> ScorePoint:
+    """Pure-function risk index score calculation matching brain.md Section 12."""
+    target_comp = company
+    if not target_comp and items:
+        target_comp = getattr(items[0], "company", "WFC")
+    elif not target_comp:
+        target_comp = "WFC"
+
+    return score_company(
+        company=target_comp,
+        as_of=as_of,
+        flags=items,
+        recent_7d_complaints=recent_7d_complaints,
+        baseline_90d_complaints=baseline_90d_complaints,
+        top_n=top_n,
     )
