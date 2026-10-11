@@ -1,0 +1,14 @@
+{
+  "name": "corporate-risk-radar",
+  "version": "0.1.0",
+  "description": "Continuous real-time corporate risk radar for fintech PS 01",
+  "private": true,
+  "scripts": {
+    "start": "python run.py",
+    "dev": "python run.py",
+    "backend": "uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload",
+    "frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "test": "pytest"
+  }
+}
