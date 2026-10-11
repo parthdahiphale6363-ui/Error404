@@ -31,11 +31,11 @@ def auto_open_browser():
 
 def main():
     print("=" * 68)
-    print("  🚀 Corporate Risk Radar (Fintech PS 01) - Single Runner")
+    print("  [Risk Radar] Corporate Risk Radar (Fintech PS 01) - Single Runner")
     print("=" * 68)
-    print("  ★ Live Dashboard (UI):    http://localhost:3000   (opening in browser...)")
-    print("  ★ FastAPI Backend API:    http://localhost:8000   (redirects to UI)")
-    print("  ★ Swagger API Docs:       http://localhost:8000/docs")
+    print("  * Live Dashboard (UI):    http://localhost:3000   (opening in browser...)")
+    print("  * FastAPI Backend API:    http://localhost:8000   (redirects to UI)")
+    print("  * Swagger API Docs:       http://localhost:8000/docs")
     print("=" * 68)
     print("  Press Ctrl+C at any time to stop all services.\n")
 
