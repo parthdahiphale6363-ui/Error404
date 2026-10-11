@@ -182,11 +182,44 @@
   - `tests/contract/test_p1_ingest_gate.py`: 20 random rows match sources, 0 duplicates on re-run, CFPB narrative filter enforced, custom User-Agent with email verified, scheduler intervals verified (60s Finnhub, 900s CFPB, 900s EDGAR), capacity budget test.
 - **Rollback**: Revert `backend/ingest/`, `backend/jobs/`, and changes to `backend/db/graph_repo.py`.
 
+#### CR-002-CFPB-ADAPTER-FALLBACK-AND-MISTRAL-CLASSIFIER: CFPB Live Schema Synthesis & Primary Mistral Classifier
+- **ID**: `CR-002-CFPB-ADAPTER-FALLBACK-AND-MISTRAL-CLASSIFIER`
+- **What**:
+  1. `backend/apigateway/adapters/cfpb.py`: Update narrative extraction logic. When `consumer_complaint_narrative` is present in `_source` (historical fixtures), preserve and use it. When it is omitted by the live CFPB API, synthesize rich complaint text from available structured fields (`product`, `sub_product`, `issue`, `sub_issue`, `company_public_response`) so live complaints are not dropped.
+  2. `backend/apigateway/adapters/mistral.py` & `backend/apigateway/adapters/llm.py`: Implement primary `classify_with_mistral(item)` method enforcing strict JSON output schema (`company`, `source_url`, `date`, `risk_type`, `severity`, `confidence`, `topics`, `regulators`, `reason`) using pinned model `open-mistral-7b` at `temperature: 0.0`.
+  3. `tests/contract/test_cfpb_adapter.py`: Add contract tests verifying both live structured field synthesis and legacy narrative extraction.
+  4. `tests/contract/test_llm_adapter.py`: Add contract tests verifying Mistral strict JSON schema parsing and error retry behavior.
+- **Why**:
+  1. The live CFPB API omits `consumer_complaint_narrative` from search hits, causing line 64 in `cfpb.py` (`if has_narrative and not narrative: continue`) to drop 100% of live complaints. Synthesizing structured text ensures real live complaint signals flow into detection and scoring.
+  2. Phase 2 mandates Mistral as the primary classifier with strict JSON output; `llm.py` currently lacks `classify_with_mistral`, and `mistral-small-latest` returned HTTP 429 rate limits, necessitating pinned `open-mistral-7b`.
+- **Files Touched**:
+  - `backend/apigateway/adapters/cfpb.py`
+  - `backend/apigateway/adapters/mistral.py` (or `backend/apigateway/adapters/llm.py`)
+  - `tests/contract/test_cfpb_adapter.py`
+  - `tests/contract/test_llm_adapter.py`
+  - `plan.md`
+- **Impact on Index / Graph / Tests**:
+  - Live CFPB complaints ingest into `Item` nodes and `ABOUT` edges without being dropped.
+  - Risk Index scoring receives real complaint flow.
+  - Mistral classifier provides structured JSON outputs matching `DetectionResult`.
+  - All existing 29 backend tests remain passing; new contract tests added.
+- **Test Plan**:
+  - `tests/contract/test_cfpb_adapter.py`:
+    - `test_cfpb_adapter_uses_narrative_when_present()`
+    - `test_cfpb_adapter_synthesizes_structured_text_when_narrative_absent()`
+  - `tests/contract/test_llm_adapter.py`:
+    - `test_mistral_strict_json_classification_contract()`
+    - `test_mistral_json_validation_retry_on_malformed_output()`
+  - Run `python -m pytest` to verify 100% test pass.
+- **Rollback**:
+  - Revert changes to `backend/apigateway/adapters/cfpb.py` and `backend/apigateway/adapters/llm.py` via git checkout.
+
 ---
 
 ## g. Runbook
-- **Backend**: `uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload`
-- **Frontend**: `cd frontend && npm run dev`
+- **Single Runner (Backend + Frontend)**: `python run.py` (or `.\run.bat` on Windows)
+- **Backend Only**: `uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload`
+- **Frontend Only**: `cd frontend && npm run dev`
 - **Scheduler**: Invoked via background job or `python -m backend.jobs.scheduler`
 - **Wake Neo4j Aura**: Run `python -m backend.db.migrate` (triggers connection and verification)
 - **Backup Graph**: `python -m backend.db.export_graph`

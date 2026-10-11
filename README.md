@@ -102,7 +102,18 @@ cp .env.example .env
 ```
 *(Never commit `.env` to version control; it is securely ignored by `.gitignore`)*
 
-### 3. Backend Setup
+### 3. Single-Command Runner (Backend + Frontend Together)
+Run both the FastAPI backend and React Vite frontend concurrently with one command:
+```bash
+python run.py
+```
+*(Or double-click `run.bat` on Windows)*
+
+- **Dashboard UI**: [http://localhost:3000](http://localhost:3000)
+- **FastAPI API**: [http://localhost:8000](http://localhost:8000)
+- **API Docs (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### 4. Running Components Individually (Optional)
 ```bash
 # Install Python dependencies
 pip install -r requirements.txt   # or pip install fastapi pydantic pytest neo4j httpx pyyaml resend groq google-genai
