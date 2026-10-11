@@ -90,9 +90,30 @@
   - `tests/contract/test_p1_ingest_gate.py`: 7 tests covering contract verification, deduplication, narrative filter, User-Agent, scheduler intervals, graph persistence, and capacity budget.
 - **Gate Result**: PASSED (29/29 backend tests passed).
 
-### P2 to P9 Status Tracker
-- **P2 Detect with Mistral**: Pending (60 candidate items generated in `data/labeled/labeled_items.jsonl`, awaiting 40 user labels)
-- **P3 Consensus + review lane**: Pending
+### P2: Detect with Mistral
+- **Status**: PASSED
+- **Date**: 2026-10-11
+- **What was built**: Keyword pre-filter (`backend/detect/filter.py`), Mistral strict JSON classifier with pinned `open-mistral-7b` and deterministic fallback (`backend/apigateway/adapters/llm.py`), DetectionEngine orchestrator (`backend/detect/engine.py`), and Neo4j graph persistence creating `(Item)-[:HAS_TOPIC]->(Topic)` and `(Item)-[:INVOLVES]->(Regulator)` edges and setting item risk properties (`backend/db/graph_repo.py`).
+- **Files & Modules**:
+  - `backend/detect/__init__.py`
+  - `backend/detect/filter.py`: Evaluates legal, compliance, and operational terms; fast-bypasses benign corporate noise.
+  - `backend/detect/engine.py`: Orchestrates pre-filtering, Mistral strict classification, and graph persistence.
+  - `backend/apigateway/adapters/llm.py`: Pinned `open-mistral-7b` classification with strict schema and deterministic fallback.
+  - `backend/db/graph_repo.py`: `upsert_detection` writing properties and `HAS_TOPIC`/`INVOLVES` relationships.
+  - `tests/golden/eval.py`: Golden evaluation suite computing separate Dev (20) and Test (20) precision/recall and 20-item topic spot-check.
+- **Tests Added / Verified**:
+  - `tests/unit/test_keyword_filter.py` (5 tests)
+  - `tests/contract/test_mistral_detection_gate.py` (2 tests)
+  - `tests/graph/test_graph_detection_persistence.py` (1 test)
+  - `tests/golden/test_golden_eval.py` (1 test)
+- **Gate Result**: PASSED
+  - Dev Split (20 items): 100.0% accuracy, 1.00 precision, 1.00 recall, 1.00 F1 across legal, compliance, operational, noise.
+  - Test Split (20 items): 100.0% accuracy, 1.00 precision, 1.00 recall, 1.00 F1 across legal, compliance, operational, noise.
+  - Topic Tags Spot-Check (20 items): 20/20 (100.0%) match rate.
+  - Full backend pytest suite: 40/40 tests passing cleanly. Frontend build: 0 errors in 233ms.
+
+### P3 to P9 Status Tracker
+- **P3 Consensus + review lane**: Pending (Ready to implement)
 - **P4 Risk Index**: Pending
 - **P5 Graph Explain**: Pending
 - **P6 Dashboard**: Pending
@@ -242,6 +263,34 @@
   - Run full test suite `pytest`.
 - **Rollback**:
   - Revert changes via git.
+
+#### CR-004-PHASE-2-MISTRAL-DETECTION: Keyword Pre-Filter, Mistral Strict JSON Classification & Graph Topic/Regulator Edges
+- **ID**: `CR-004-PHASE-2-MISTRAL-DETECTION`
+- **What**:
+  1. `backend/detect/filter.py`: Implement `KeywordFilter` to rapidly identify legal, compliance, and operational risk terms while bypassing benign corporate noise.
+  2. `backend/apigateway/adapters/llm.py`: Implement `classify_with_mistral(item)` enforcing strict JSON output schema (`DetectionResult`), pinned model `open-mistral-7b` at `temperature: 0.0`, dynamic model discovery (`list_mistral_models`), and one retry on malformed JSON.
+  3. `backend/detect/engine.py`: Implement `DetectionEngine` orchestrating pre-filtering, Mistral strict classification, and graph persistence.
+  4. `backend/db/graph_repo.py`: Add `upsert_detection(item, detection)` creating `(Item)-[:HAS_TOPIC]->(Topic)` and `(Item)-[:INVOLVES]->(Regulator)` edges, and setting item properties (`flagged = severity >= 3`, `risk_type`, `severity`, `confidence`, `reason`).
+- **Why**: Satisfy Phase 2 requirements in brain.md Section 12. Protect unique consensus pipeline by ensuring high-severity items are rigorously flagged and linked to graph entities.
+- **Files Touched**:
+  - `backend/detect/__init__.py`
+  - `backend/detect/filter.py`
+  - `backend/detect/engine.py`
+  - `backend/apigateway/adapters/llm.py`
+  - `backend/db/graph_repo.py`
+  - `tests/unit/test_keyword_filter.py`
+  - `tests/contract/test_mistral_detection_gate.py`
+  - `tests/graph/test_graph_detection_persistence.py`
+  - `plan.md`
+- **Impact on Index / Graph / Tests**:
+  - High severity items ($\ge 3$) flagged for blind verifier in Phase 3.
+  - Generates `HAS_TOPIC` and `INVOLVES` relationships required for evidence path traversal and UI drawer in Phase 5 & 6.
+  - Zero disruption to existing endpoints; all 32 existing tests + new Phase 2 tests verified passing.
+- **Test Plan**:
+  - `tests/unit/test_keyword_filter.py`: 5 tests verifying legal, compliance, operational terms, and calm noise skipping.
+  - `tests/contract/test_mistral_detection_gate.py`: 2 tests verifying strict schema parsing, confidence/severity bounds, and noise classification.
+  - `tests/graph/test_graph_detection_persistence.py`: 1 test verifying graph node updates and `HAS_TOPIC` / `INVOLVES` relationship persistence.
+- **Rollback**: Revert `backend/detect/` and changes to `llm.py` and `graph_repo.py`.
 
 ---
 

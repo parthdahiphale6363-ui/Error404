@@ -279,7 +279,69 @@ class GraphRepo:
         with driver.session() as session:
             session.run(query, **params)
 
+    def upsert_detection(self, item: Item, detection: Any):
+        """Persist detection properties (severity, risk_type, flagged, confidence) and topic/regulator edges."""
+        topics = getattr(detection, "topics", [])
+        regulators = getattr(detection, "regulators", [])
+        self.upsert_item(item, topics=topics, regulators=regulators)
+
+        severity = getattr(detection, "severity", 0)
+        risk_type = getattr(detection.risk_type, "value", str(detection.risk_type))
+        confidence = getattr(detection, "confidence", 1.0)
+        reason = getattr(detection, "reason", "")
+        flagged = severity >= 3
+
+        driver = self.get_driver()
+        if not driver:
+            if item.id in self._in_memory_items:
+                self._in_memory_items[item.id].update({
+                    "severity": severity,
+                    "risk_type": risk_type,
+                    "confidence": confidence,
+                    "reason": reason,
+                    "flagged": flagged,
+                    "topics": topics,
+                    "regulators": regulators,
+                })
+            return
+
+        query = (
+            "MATCH (i:Item {id: $id}) "
+            "SET i.severity = $severity, "
+            "    i.risk_type = $risk_type, "
+            "    i.confidence = $confidence, "
+            "    i.reason = $reason, "
+            "    i.flagged = $flagged, "
+            "    i.topics_json = $topics_json, "
+            "    i.regulators_json = $regulators_json"
+        )
+        with driver.session() as session:
+            session.run(
+                query,
+                id=item.id,
+                severity=severity,
+                risk_type=risk_type,
+                confidence=confidence,
+                reason=reason,
+                flagged=flagged,
+                topics_json=json.dumps(topics),
+                regulators_json=json.dumps(regulators),
+            )
+
+    def get_item(self, item_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve single item by ID."""
+        driver = self.get_driver()
+        if not driver:
+            return self._in_memory_items.get(item_id)
+
+        query = "MATCH (i:Item {id: $id}) RETURN i"
+        with driver.session() as session:
+            res = session.run(query, id=item_id)
+            record = res.single()
+            return dict(record["i"]) if record else None
+
     def get_items_for_company(self, ticker: str, limit: int = 100) -> List[Dict[str, Any]]:
+
         """Retrieve items about a company."""
         driver = self.get_driver()
         if not driver:
